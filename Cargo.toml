@@ -1,0 +1,10 @@
+[package]
+name = "redlab"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.17.3", features = ["bevy_dev_tools"] }
+rand_core = "0.9"
+bevy_rand = "0.12"
+bevy_prng = { version = "0.12", features = ["rand_chacha", "wyrand"] }
