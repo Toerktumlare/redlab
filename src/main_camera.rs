@@ -107,8 +107,8 @@ fn startup(
         MeshPickingCamera,
     ));
 
-    // commands.spawn((Sprite::from_image(image_handle), Canvas, Pickable::IGNORE));
-    // commands.spawn((Camera2d, Msaa::Off, OuterCamera, Pickable::IGNORE));
+    commands.spawn((Sprite::from_image(image_handle), Canvas, Pickable::IGNORE));
+    commands.spawn((Camera2d, Msaa::Off, OuterCamera, Pickable::IGNORE));
 }
 
 fn camera_zoom(

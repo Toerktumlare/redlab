@@ -79,7 +79,7 @@ impl CubeSide {
                 normals: [Vec3::NEG_Y.to_array(); 4],
             },
             CubeSide::Right => SideData {
-                positions: [[p, n, n], [p, n, p], [p, p, p], [p, p, n]],
+                positions: [[p, p, p], [p, p, n], [p, n, n], [p, n, p]],
                 uvs,
                 normals: [Vec3::X.to_array(); 4],
             },
@@ -110,11 +110,10 @@ struct SideData {
 
 type UvCoords = [[f32; 2]; 4];
 
+// [[0.1, 0.0], [0.0, 0.2], [0.2, 0.1], [0.1, 0.1]]
 fn get_uvs(tile_coords: &TileCoords) -> UvCoords {
     let x = tile_coords.x as f32;
     let y = tile_coords.y as f32;
-
-    info!("{tile_coords:#?}");
 
     let tile_size = TILE_NORMALIZED_SIZE;
 
@@ -127,14 +126,12 @@ fn get_uvs(tile_coords: &TileCoords) -> UvCoords {
     let v_max = (y + 1.0) * tile_size;
 
     // Starting at top left, then top right, bottom right, bottom left
-    let c = [
-        [u_min, v_max],
-        [u_max, v_max],
-        [u_max, v_min],
+    [
         [u_min, v_min],
-    ];
-    info!("{c:#?}");
-    c
+        [u_max, v_min],
+        [u_max, v_max],
+        [u_min, v_max],
+    ]
 }
 
 impl Cube {
