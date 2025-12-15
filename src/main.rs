@@ -28,6 +28,9 @@ struct BasicBlock;
 #[derive(Component)]
 struct HoverMarker;
 
+#[derive(Component)]
+struct HoveredBlock;
+
 fn main() {
     App::new()
         .add_plugins(EntropyPlugin::<WyRand>::default())
@@ -78,7 +81,7 @@ fn startup(
     let grid_size = 5;
     let half_grid = grid_size / 2;
 
-    let custom_texture_handle: Handle<Image> = asset_server.load("cube.png");
+    let custom_texture_handle: Handle<Image> = asset_server.load("cube-sheet.png");
 
     for x in 0..grid_size {
         for z in 0..grid_size {
@@ -91,12 +94,12 @@ fn startup(
                 let pos_z = z - half_grid;
                 if y == 0 {
                     let textures = CubeTextures::new(
-                        Some(TileCoords::new(0, 0)),
-                        Some(TileCoords::new(1, 0)),
-                        Some(TileCoords::new(2, 0)),
-                        Some(TileCoords::new(3, 0)),
-                        Some(TileCoords::new(4, 0)),
-                        Some(TileCoords::new(5, 0)),
+                        Some(TileCoords::new(0, 1)),
+                        Some(TileCoords::new(1, 1)),
+                        Some(TileCoords::new(2, 1)),
+                        Some(TileCoords::new(3, 1)),
+                        Some(TileCoords::new(4, 1)),
+                        Some(TileCoords::new(5, 1)),
                     );
                     let mesh = Cube::new(textures);
 
@@ -107,6 +110,7 @@ fn startup(
                             Mesh3d(meshes.add(mesh)),
                             MeshMaterial3d(materials.add(StandardMaterial {
                                 base_color_texture: Some(custom_texture_handle.clone()),
+                                perceptual_roughness: 1.0,
                                 ..default()
                             })),
                             Transform::from_xyz(pos_x as f32, y as f32, pos_z as f32),
@@ -116,35 +120,38 @@ fn startup(
                                 ..default()
                             },
                         ))
-                        .observe(
-                            |event: On<Pointer<Over>>,
-                             query: Query<&Transform, With<BasicBlock>>,
-                             mut meshes: ResMut<Assets<Mesh>>,
-                             mut materials: ResMut<Assets<StandardMaterial>>,
-                             mut commands: Commands| {
-                                info!("On event triggered!");
-                                let mesh_transform = query.get(event.event_target()).unwrap();
-                                let mesh_center = mesh_transform.translation;
-                                let point = mesh_center + event.hit.normal.unwrap() * 0.501;
-                                let rotation =
-                                    Quat::from_rotation_arc(Vec3::Y, event.hit.normal.unwrap());
-                                commands.spawn((
-                                    Mesh3d(meshes.add(Cuboid::new(0.9, 0.01, 0.9))),
-                                    MeshMaterial3d(materials.add(Color::srgb(0.7, 0.4, 0.8))),
-                                    Transform::from_translation(point).with_rotation(rotation),
-                                    HoverMarker,
-                                ));
-                            },
-                        )
-                        .observe(
-                            |_event: On<Pointer<Out>>,
-                             query: Query<Entity, With<HoverMarker>>,
-                             mut commands: Commands| {
-                                if let Some(entity) = query.iter().next() {
-                                    commands.entity(entity).despawn();
-                                }
-                            },
-                        )
+                        .observe(spawn_selection)
+                        .observe(move_selection)
+                        .observe(despawn_selection)
+                        // .observe(
+                        //     |event: On<Pointer<Over>>,
+                        //      query: Query<&Transform, With<BasicBlock>>,
+                        //      mut meshes: ResMut<Assets<Mesh>>,
+                        //      mut materials: ResMut<Assets<StandardMaterial>>,
+                        //      mut commands: Commands| {
+                        //         info!("On event triggered!");
+                        //         let mesh_transform = query.get(event.event_target()).unwrap();
+                        //         let mesh_center = mesh_transform.translation;
+                        //         let point = mesh_center + event.hit.normal.unwrap() * 0.501;
+                        //         let rotation =
+                        //             Quat::from_rotation_arc(Vec3::Y, event.hit.normal.unwrap());
+                        //         commands.spawn((
+                        //             Mesh3d(meshes.add(Cuboid::new(0.9, 0.01, 0.9))),
+                        //             MeshMaterial3d(materials.add(Color::srgb(0.7, 0.4, 0.8))),
+                        //             Transform::from_translation(point).with_rotation(rotation),
+                        //             HoverMarker,
+                        //         ));
+                        //     },
+                        // )
+                        // .observe(
+                        //     |_event: On<Pointer<Out>>,
+                        //      query: Query<Entity, With<HoverMarker>>,
+                        //      mut commands: Commands| {
+                        //         if let Some(entity) = query.iter().next() {
+                        //             commands.entity(entity).despawn();
+                        //         }
+                        //     },
+                        // )
                         .id();
                     grid.map.insert(IVec3::new(pos_x, y, pos_z), entity);
                 } else {
@@ -163,6 +170,9 @@ fn startup(
                                     ..default()
                                 },
                             ))
+                            .observe(spawn_selection)
+                            .observe(move_selection)
+                            .observe(despawn_selection)
                             .id();
                         grid.map.insert(IVec3::new(pos_x, y, pos_z), entity);
                     }
@@ -175,19 +185,84 @@ fn startup(
         brightness: 500.0,
         ..default()
     });
-
-    commands.spawn((
-        PointLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_xyz(6.0, 4.0, -3.0),
-    ));
 }
 
 fn random_f32(rng: &mut WyRand) -> f32 {
     let v = rng.next_u32(); // 0 ..= u32::MAX
     (v as f32) / (u32::MAX as f32) // 0.0 .. 1.0
+}
+
+fn spawn_selection(
+    event: On<Pointer<Over>>,
+    query: Query<&Transform>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let entity = event.event_target();
+    let transform = query.get(entity).unwrap();
+
+    if let Some(normal) = event.event.hit.normal {
+        let face = {
+            let n = normal.normalize();
+            if n.x.abs() > 0.9 {
+                Vec3::new(n.x.signum(), 0.0, 0.0)
+            } else if n.y.abs() > 0.9 {
+                Vec3::new(0.0, n.y.signum(), 0.0)
+            } else {
+                Vec3::new(0.0, 0.0, n.z.signum())
+            }
+        };
+
+        let point = transform.translation + face * 0.501;
+        let rotation = Quat::from_rotation_arc(Vec3::Y, face);
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(0.9, 0.01, 0.9))),
+            MeshMaterial3d(materials.add(Color::srgb(0.7, 0.4, 0.8))),
+            Transform::from_translation(point).with_rotation(rotation),
+            HoverMarker,
+        ));
+
+        commands.entity(entity).insert(HoveredBlock);
+    }
+}
+
+fn move_selection(
+    event: On<Pointer<Move>>,
+    block: Single<(&Transform, &HoveredBlock)>,
+    mut hover_entity: Single<&mut Transform, (With<HoverMarker>, Without<HoveredBlock>)>,
+) {
+    let (block_transform, _) = *block;
+
+    if let Some(normal) = event.event.hit.normal {
+        let face = {
+            let n = normal.normalize();
+            if n.x.abs() > 0.9 {
+                Vec3::new(n.x.signum(), 0.0, 0.0)
+            } else if n.y.abs() > 0.9 {
+                Vec3::new(0.0, n.y.signum(), 0.0)
+            } else {
+                Vec3::new(0.0, 0.0, n.z.signum())
+            }
+        };
+
+        let point = block_transform.translation + face * 0.501;
+        let rotation = Quat::from_rotation_arc(Vec3::Y, face);
+
+        hover_entity.translation = point;
+        hover_entity.rotation = rotation;
+    }
+}
+
+fn despawn_selection(
+    event: On<Pointer<Out>>,
+    hover_entity: Single<Entity, With<HoverMarker>>,
+    mut commands: Commands,
+) {
+    commands.entity(*hover_entity).despawn();
+    commands
+        .entity(event.event_target())
+        .remove::<HoveredBlock>();
 }
 
 fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {

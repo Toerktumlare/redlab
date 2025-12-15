@@ -61,11 +61,11 @@ enum CubeSide {
 }
 
 impl CubeSide {
-    pub fn get_data(&self, tile_coords: &TileCoords) -> SideData {
+    pub fn get_data(&self, tile_coords: &TileCoords, cube_side: &CubeSide) -> SideData {
         let n = -0.5;
         let p = 0.5;
 
-        let uvs = get_uvs(tile_coords);
+        let uvs = get_uvs(tile_coords, cube_side);
 
         match self {
             CubeSide::Top => SideData {
@@ -84,17 +84,17 @@ impl CubeSide {
                 normals: [Vec3::X.to_array(); 4],
             },
             CubeSide::Left => SideData {
-                positions: [[n, n, n], [n, n, p], [n, p, p], [n, p, n]],
+                positions: [[n, p, p], [n, p, n], [n, n, n], [n, n, p]],
                 uvs,
                 normals: [Vec3::NEG_X.to_array(); 4],
             },
             CubeSide::Back => SideData {
-                positions: [[n, n, p], [n, p, p], [p, p, p], [p, n, p]],
+                positions: [[n, p, p], [p, p, p], [p, n, p], [n, n, p]],
                 uvs,
                 normals: [Vec3::Z.to_array(); 4],
             },
             CubeSide::Forward => SideData {
-                positions: [[n, n, n], [n, p, n], [p, p, n], [p, n, n]],
+                positions: [[p, n, n], [n, n, n], [n, p, n], [p, p, n]],
                 uvs,
                 normals: [Vec3::NEG_Z.to_array(); 4],
             },
@@ -110,8 +110,7 @@ struct SideData {
 
 type UvCoords = [[f32; 2]; 4];
 
-// [[0.1, 0.0], [0.0, 0.2], [0.2, 0.1], [0.1, 0.1]]
-fn get_uvs(tile_coords: &TileCoords) -> UvCoords {
+fn get_uvs(tile_coords: &TileCoords, cube_side: &CubeSide) -> UvCoords {
     let x = tile_coords.x as f32;
     let y = tile_coords.y as f32;
 
@@ -126,12 +125,20 @@ fn get_uvs(tile_coords: &TileCoords) -> UvCoords {
     let v_max = (y + 1.0) * tile_size;
 
     // Starting at top left, then top right, bottom right, bottom left
-    [
+    let mut uvs = [
         [u_min, v_min],
         [u_max, v_min],
         [u_max, v_max],
         [u_min, v_max],
-    ]
+    ];
+
+    match cube_side {
+        CubeSide::Bottom | CubeSide::Forward => {
+            uvs.reverse();
+            uvs
+        }
+        _ => uvs,
+    }
 }
 
 impl Cube {
@@ -155,7 +162,7 @@ impl Cube {
 
         for (cube_side, opt_tile_coord) in sides.iter() {
             if let Some(tile_coord) = opt_tile_coord {
-                let data = cube_side.get_data(tile_coord);
+                let data = cube_side.get_data(tile_coord, cube_side);
                 positions.extend(data.positions);
                 uvs.extend(data.uvs);
                 normals.extend(data.normals);
