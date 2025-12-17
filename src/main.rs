@@ -16,6 +16,7 @@ use crate::{
 
 mod cube;
 mod main_camera;
+mod pixel_picking_plugin;
 
 #[derive(Resource, Default)]
 struct Grid {
@@ -123,35 +124,6 @@ fn startup(
                         .observe(spawn_selection)
                         .observe(move_selection)
                         .observe(despawn_selection)
-                        // .observe(
-                        //     |event: On<Pointer<Over>>,
-                        //      query: Query<&Transform, With<BasicBlock>>,
-                        //      mut meshes: ResMut<Assets<Mesh>>,
-                        //      mut materials: ResMut<Assets<StandardMaterial>>,
-                        //      mut commands: Commands| {
-                        //         info!("On event triggered!");
-                        //         let mesh_transform = query.get(event.event_target()).unwrap();
-                        //         let mesh_center = mesh_transform.translation;
-                        //         let point = mesh_center + event.hit.normal.unwrap() * 0.501;
-                        //         let rotation =
-                        //             Quat::from_rotation_arc(Vec3::Y, event.hit.normal.unwrap());
-                        //         commands.spawn((
-                        //             Mesh3d(meshes.add(Cuboid::new(0.9, 0.01, 0.9))),
-                        //             MeshMaterial3d(materials.add(Color::srgb(0.7, 0.4, 0.8))),
-                        //             Transform::from_translation(point).with_rotation(rotation),
-                        //             HoverMarker,
-                        //         ));
-                        //     },
-                        // )
-                        // .observe(
-                        //     |_event: On<Pointer<Out>>,
-                        //      query: Query<Entity, With<HoverMarker>>,
-                        //      mut commands: Commands| {
-                        //         if let Some(entity) = query.iter().next() {
-                        //             commands.entity(entity).despawn();
-                        //         }
-                        //     },
-                        // )
                         .id();
                     grid.map.insert(IVec3::new(pos_x, y, pos_z), entity);
                 } else {
@@ -214,7 +186,7 @@ fn spawn_selection(
             }
         };
 
-        let point = transform.translation + face * 0.501;
+        let point = transform.translation + face * 0.503;
         let rotation = Quat::from_rotation_arc(Vec3::Y, face);
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(0.9, 0.01, 0.9))),

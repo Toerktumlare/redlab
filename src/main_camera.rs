@@ -10,6 +10,8 @@ use bevy::{
 
 use bevy::dev_tools::picking_debug::{DebugPickingMode, DebugPickingPlugin};
 
+use crate::pixel_picking_plugin::{OuterCamera, PixelCamera, PixelPickingPlugin};
+
 const RES_WIDTH: u32 = 640;
 const RES_HEIGHT: u32 = 320;
 
@@ -20,7 +22,7 @@ struct Canvas;
 pub struct InnerCamera;
 
 #[derive(Component)]
-pub struct OuterCamera;
+pub struct Quad;
 
 #[derive(Resource)]
 struct CameraSettings {
@@ -47,7 +49,7 @@ impl Plugin for MainCameraPlugin {
                 ..default()
             })
             .insert_resource(DebugPickingMode::Noisy)
-            .add_plugins((MeshPickingPlugin, DebugPickingPlugin))
+            .add_plugins((MeshPickingPlugin, DebugPickingPlugin, PixelPickingPlugin))
             .add_systems(Startup, startup)
             .add_systems(
                 Update,
@@ -88,8 +90,12 @@ fn startup(
     let image_handle = images.add(canvas);
 
     commands.spawn((
-        Transform::from_xyz(10.0, 10.0, 10.0).looking_at(camera_settings.center, Vec3::Y),
-        InnerCamera,
+        Camera3d::default(),
+        Camera {
+            order: 0,
+            target: RenderTarget::Image(image_handle.clone().into()),
+            ..default()
+        },
         Projection::from(OrthographicProjection {
             scale: 10.0,
             scaling_mode: ScalingMode::FixedHorizontal {
@@ -97,104 +103,26 @@ fn startup(
             },
             ..OrthographicProjection::default_3d()
         }),
-        children![
-            (
-                Camera3d::default(),
-                Camera {
-                    order: -1,
-                    ..default()
-                },
-                Msaa::Off,
-                MeshPickingCamera,
-                children![(
-                    PointLight {
-                        shadows_enabled: true,
-                        ..default()
-                    },
-                    Transform::from_xyz(6.0, 4.0, -3.0),
-                )],
-            ),
-            (
-                Camera3d::default(),
-                Camera {
-                    order: -2,
-                    target: RenderTarget::Image(image_handle.clone().into()),
-                    ..default()
-                },
-                Msaa::Off,
-            )
-        ],
+        Msaa::Off,
+        Transform::from_xyz(10.0, 10.0, 10.0).looking_at(camera_settings.center, Vec3::Y),
+        InnerCamera,
+        PixelCamera,
+        children![(
+            PointLight {
+                shadows_enabled: true,
+                ..default()
+            },
+            // Transform::from_xyz(10.0, 5.0, 5.0).looking_at(camera_settings.center, Vec3::Y),
+        )],
     ));
 
-    // commands.spawn((
-    //     Camera3d::default(),
-    //     Camera {
-    //         order: -1,
-    //         ..default()
-    //     },
-    //     Projection::from(OrthographicProjection {
-    //         scale: 10.0,
-    //         scaling_mode: ScalingMode::FixedHorizontal {
-    //             viewport_width: 1.0,
-    //         },
-    //         ..OrthographicProjection::default_3d()
-    //     }),
-    //     Msaa::Off,
-    //     Transform::from_xyz(10.0, 10.0, 10.0).looking_at(camera_settings.center, Vec3::Y),
-    //     InnerCamera,
-    //     MeshPickingCamera,
-    //     children![(
-    //         PointLight {
-    //             shadows_enabled: true,
-    //             ..default()
-    //         },
-    //         Transform::from_xyz(6.0, 4.0, -3.0),
-    //     ),],
-    // ));
-
-    // commands.spawn((
-    //     Camera3d::default(),
-    //     Camera {
-    //         order: -2,
-    //         target: RenderTarget::Image(image_handle.clone().into()),
-    //         ..default()
-    //     },
-    //     Projection::from(OrthographicProjection {
-    //         scale: 10.0,
-    //         scaling_mode: ScalingMode::FixedHorizontal {
-    //             viewport_width: 1.0,
-    //         },
-    //         ..OrthographicProjection::default_3d()
-    //     }),
-    //     Msaa::Off,
-    //     Transform::from_xyz(10.0, 10.0, 10.0).looking_at(camera_settings.center, Vec3::Y),
-    //     InnerCamera,
-    //     children![(
-    //         PointLight {
-    //             shadows_enabled: true,
-    //             ..default()
-    //         },
-    //         Transform::from_xyz(6.0, 4.0, -3.0),
-    //     )],
-    // ));
-
-    commands.spawn((Sprite::from_image(image_handle), Canvas, Pickable::IGNORE));
+    commands.spawn((
+        Sprite::from_image(image_handle),
+        Canvas,
+        Pickable::IGNORE,
+        Quad,
+    ));
     commands.spawn((Camera2d, Msaa::Off, OuterCamera, Pickable::IGNORE));
-
-    // commands.spawn((
-    //     Node {
-    //         position_type: PositionType::Absolute,
-    //         top: px(50),
-    //         left: px(50),
-    //         width: px(1000),
-    //         height: px(800),
-    //         border: UiRect::all(px(5)),
-    //         ..default()
-    //     },
-    //     BorderColor::all(Color::WHITE),
-    //     ViewportNode::new(c),
-    //     Pickable::IGNORE,
-    // ));
 }
 
 fn camera_zoom(
