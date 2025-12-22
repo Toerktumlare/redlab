@@ -1,4 +1,5 @@
 use bevy::camera::visibility::RenderLayers;
+use bevy::ecs::error::info;
 use bevy::picking::PickingSystems;
 use bevy::picking::backend::{HitData, PointerHits};
 use bevy::picking::pointer::PointerId;
@@ -60,10 +61,11 @@ pub fn update_hits(
         .with_filter(&filter)
         .with_early_exit_test(&early_exit_test);
 
-    // calculate mouse position relative where on the image to where in 3D space we whould start
-    // casting our ray.
-    let tex_pixel = window.cursor_position().unwrap_or_default()
-        * Vec2::new(640.0 / window.width(), 320.0 / window.height());
+    let normalized =
+        window.cursor_position().unwrap_or_default() / Vec2::new(window.width(), window.height());
+
+    let tex_size = Vec2::new(640.0, 360.0);
+    let tex_pixel = normalized * tex_size;
 
     let ray = camera
         .viewport_to_world(camera_transform, tex_pixel)

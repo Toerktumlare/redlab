@@ -1,6 +1,9 @@
+use std::f32::consts::PI;
+
 use bevy::{
     camera::{RenderTarget, ScalingMode},
     input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll},
+    light::CascadeShadowConfigBuilder,
     prelude::*,
     render::render_resource::{
         Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
@@ -13,7 +16,7 @@ use bevy::dev_tools::picking_debug::{DebugPickingMode, DebugPickingPlugin};
 use crate::pixel_picking_plugin::{OuterCamera, PixelCamera, PixelPickingPlugin};
 
 const RES_WIDTH: u32 = 640;
-const RES_HEIGHT: u32 = 320;
+const RES_HEIGHT: u32 = 360;
 
 #[derive(Component)]
 struct Canvas;
@@ -107,22 +110,31 @@ fn startup(
         Transform::from_xyz(10.0, 10.0, 10.0).looking_at(camera_settings.center, Vec3::Y),
         InnerCamera,
         PixelCamera,
-        children![(
-            PointLight {
-                shadows_enabled: true,
-                ..default()
-            },
-            // Transform::from_xyz(10.0, 5.0, 5.0).looking_at(camera_settings.center, Vec3::Y),
-        )],
+    ));
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 1000.,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform {
+            translation: Vec3::new(0.0, 2.0, 0.0),
+            rotation: Quat::from_rotation_x(-PI / 4.),
+            ..default()
+        },
+        // The default cascade config is designed to handle large scenes.
+        // As this example has a much smaller world, we can tighten the shadow
+        // bounds for better visual quality.
+        CascadeShadowConfigBuilder {
+            first_cascade_far_bound: 4.0,
+            maximum_distance: 10.0,
+            ..default()
+        }
+        .build(),
     ));
 
-    commands.spawn((
-        Sprite::from_image(image_handle),
-        Canvas,
-        Pickable::IGNORE,
-        Quad,
-    ));
-    commands.spawn((Camera2d, Msaa::Off, OuterCamera, Pickable::IGNORE));
+    commands.spawn((Sprite::from_image(image_handle), Canvas, Quad));
+    commands.spawn((Camera2d, Msaa::Off, OuterCamera));
 }
 
 fn camera_zoom(
@@ -142,6 +154,7 @@ fn camera_movement(
     mut camera_settings: ResMut<CameraSettings>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
 ) {
     let delta = mouse_motion.delta;
     let sensitivity = 0.005;
@@ -159,7 +172,7 @@ fn camera_movement(
         //move center point by same amount
         camera_settings.center += pan;
     }
-    if mouse_buttons.pressed(MouseButton::Right) {
+    if mouse_buttons.pressed(MouseButton::Right) && keyboard.pressed(KeyCode::ControlLeft) {
         let (yaw, pitch, roll) = camera.rotation.to_euler(EulerRot::YXZ);
         let yaw = yaw + delta.x * sensitivity;
         let pitch = pitch + delta.y * sensitivity;
@@ -176,9 +189,9 @@ fn camera_reset(
     projection: Single<&mut Projection, With<InnerCamera>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Space) {
-        let camera_origin = Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y);
-        camera_settings.center = Vec3::ZERO;
-        camera_settings.distance = 10.0;
+        *camera_settings = CameraSettings::default();
+        let camera_origin =
+            Transform::from_xyz(10.0, 10.0, 10.0).looking_at(camera_settings.center, Vec3::Y);
         camera.translation = camera_origin.translation;
         camera.rotation = camera_origin.rotation;
         if let Projection::Orthographic(ortho) = &mut *projection.into_inner() {

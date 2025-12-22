@@ -4,6 +4,8 @@ use bevy::{
     prelude::*,
 };
 
+use crate::Block;
+
 pub struct Cube;
 
 pub struct CubeTextures {
@@ -203,5 +205,30 @@ impl Cube {
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
         .with_inserted_indices(Indices::U32(indices))
+    }
+
+    pub fn get(block: Block) -> Mesh {
+        let texture = match block {
+            Block::StandardGrass => CubeTextures::new(
+                Some(TileCoords::new(0, 1)),
+                Some(TileCoords::new(1, 1)),
+                Some(TileCoords::new(2, 1)),
+                Some(TileCoords::new(3, 1)),
+                Some(TileCoords::new(4, 1)),
+                Some(TileCoords::new(5, 1)),
+            ),
+            Block::RedStone => CubeTextures::new(
+                Some(TileCoords::new(0, 0)),
+                Some(TileCoords::new(1, 0)),
+                Some(TileCoords::new(2, 0)),
+                Some(TileCoords::new(3, 0)),
+                Some(TileCoords::new(4, 0)),
+                Some(TileCoords::new(5, 0)),
+            ),
+            Block::Dust => todo!(),
+            Block::RedStoneLamp => todo!(),
+        };
+
+        Cube::new(texture)
     }
 }

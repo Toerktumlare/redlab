@@ -10,10 +10,18 @@ use std::collections::HashMap;
 use bevy::color::palettes::css::GHOST_WHITE;
 
 use crate::{
+    block_interaction_plugin::BlockInteractionPlugin,
+    block_lifecycle_plugin::BlockLifecyclePlugin,
+    block_selection_plugin::{
+        BlockSelectionPlugin, track_grid_cordinate, track_hovered_block, untrack_hovered_block,
+    },
     cube::{Cube, CubeTextures, TileCoords},
     main_camera::MainCameraPlugin,
 };
 
+mod block_interaction_plugin;
+mod block_lifecycle_plugin;
+mod block_selection_plugin;
 mod cube;
 mod main_camera;
 mod pixel_picking_plugin;
@@ -24,13 +32,35 @@ struct Grid {
 }
 
 #[derive(Component)]
-struct BasicBlock;
-
-#[derive(Component)]
-struct HoverMarker;
+struct PreviewBlock;
 
 #[derive(Component)]
 struct HoveredBlock;
+
+#[derive(Resource, Default)]
+struct HoveredBlockPosition {
+    position: Option<IVec3>,
+    normal: Option<Vec3>,
+}
+
+#[derive(Resource, Default)]
+struct SelectedBlock(Option<Block>);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+enum Block {
+    StandardGrass,
+    RedStone,
+    Dust,
+    RedStoneLamp,
+}
+
+#[derive(Resource, Default)]
+struct Textures {
+    handles: HashMap<Block, Handle<Image>>,
+}
+
+#[derive(Event)]
+struct PlaceBlockRequestEvent;
 
 fn main() {
     App::new()
@@ -48,10 +78,29 @@ fn main() {
                 })
                 .set(ImagePlugin::default_nearest()),
         )
-        .add_plugins(MainCameraPlugin)
+        .add_plugins((
+            MainCameraPlugin,
+            BlockSelectionPlugin,
+            BlockInteractionPlugin,
+            BlockLifecyclePlugin,
+        ))
         .init_resource::<Grid>()
+        .init_resource::<Textures>()
+        .init_resource::<HoveredBlockPosition>()
+        .init_resource::<SelectedBlock>()
         .add_systems(Startup, startup)
-        .add_systems(Update, draw_on_hover_arrow)
+        .add_systems(
+            Update,
+            (
+                select_block,
+                request_place_selected_block,
+                update_preview_block.run_if(
+                    resource_changed::<SelectedBlock>.and(not(resource_added::<SelectedBlock>)),
+                ),
+                draw_on_hover_arrow,
+                hover_block_visibility_system,
+            ),
+        )
         .run();
 }
 
@@ -62,6 +111,7 @@ fn startup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
     mut grid: ResMut<Grid>,
+    mut textures: ResMut<Textures>,
 ) {
     commands.spawn((
         Text::new("(1) Dust  (2) RedBlock  (3) Lamp  (4) Lever  (0) Erase   (Space) Play/Pause  (S) Step  (R) Reset  (C) Cycle camera"),
@@ -79,10 +129,12 @@ fn startup(
         TextColor(GHOST_WHITE.into())
     ));
 
-    let grid_size = 5;
+    let grid_size = 4;
     let half_grid = grid_size / 2;
 
-    let custom_texture_handle: Handle<Image> = asset_server.load("cube-sheet.png");
+    let grass_texture: Handle<Image> = asset_server.load("cube-sheet.png");
+    textures.handles.insert(Block::StandardGrass, grass_texture);
+    let grass_texture = textures.handles.get(&Block::StandardGrass);
 
     for x in 0..grid_size {
         for z in 0..grid_size {
@@ -107,44 +159,38 @@ fn startup(
                     info_once!("{mesh:#?}");
                     let entity = commands
                         .spawn((
-                            Name::new("Basic"),
                             Mesh3d(meshes.add(mesh)),
                             MeshMaterial3d(materials.add(StandardMaterial {
-                                base_color_texture: Some(custom_texture_handle.clone()),
+                                base_color_texture: grass_texture.cloned(),
                                 perceptual_roughness: 1.0,
                                 ..default()
                             })),
                             Transform::from_xyz(pos_x as f32, y as f32, pos_z as f32),
-                            BasicBlock,
                             Pickable {
                                 is_hoverable: true,
                                 ..default()
                             },
                         ))
-                        .observe(spawn_selection)
-                        .observe(move_selection)
-                        .observe(despawn_selection)
+                        .observe(track_hovered_block)
+                        .observe(track_grid_cordinate)
+                        .observe(untrack_hovered_block)
                         .id();
                     grid.map.insert(IVec3::new(pos_x, y, pos_z), entity);
                 } else {
                     let u = rng.next_u32();
                     let should_spawn = u < (u32::MAX / 10);
-                    if should_spawn {
+                    if false {
                         let entity = commands
                             .spawn((
                                 Name::new("TopRow"),
                                 Mesh3d(meshes.add(Cuboid::default())),
                                 MeshMaterial3d(materials.add(Color::srgb(r, g, b))),
                                 Transform::from_xyz(pos_x as f32, y as f32, pos_z as f32),
-                                BasicBlock,
                                 Pickable {
                                     is_hoverable: true,
                                     ..default()
                                 },
                             ))
-                            .observe(spawn_selection)
-                            .observe(move_selection)
-                            .observe(despawn_selection)
                             .id();
                         grid.map.insert(IVec3::new(pos_x, y, pos_z), entity);
                     }
@@ -166,75 +212,15 @@ fn random_f32(rng: &mut WyRand) -> f32 {
 
 fn spawn_selection(
     event: On<Pointer<Over>>,
-    query: Query<&Transform>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    hover_entity: Query<Entity, With<PreviewBlock>>,
+    mut selected_block: ResMut<SelectedBlock>,
 ) {
-    let entity = event.event_target();
-    let transform = query.get(entity).unwrap();
-
-    if let Some(normal) = event.event.hit.normal {
-        let face = {
-            let n = normal.normalize();
-            if n.x.abs() > 0.9 {
-                Vec3::new(n.x.signum(), 0.0, 0.0)
-            } else if n.y.abs() > 0.9 {
-                Vec3::new(0.0, n.y.signum(), 0.0)
-            } else {
-                Vec3::new(0.0, 0.0, n.z.signum())
-            }
-        };
-
-        let point = transform.translation + face * 0.503;
-        let rotation = Quat::from_rotation_arc(Vec3::Y, face);
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.9, 0.01, 0.9))),
-            MeshMaterial3d(materials.add(Color::srgb(0.7, 0.4, 0.8))),
-            Transform::from_translation(point).with_rotation(rotation),
-            HoverMarker,
-        ));
-
-        commands.entity(entity).insert(HoveredBlock);
+    if hover_entity.single().is_err() && selected_block.0.is_some() {
+        selected_block.set_changed();
     }
-}
-
-fn move_selection(
-    event: On<Pointer<Move>>,
-    block: Single<(&Transform, &HoveredBlock)>,
-    mut hover_entity: Single<&mut Transform, (With<HoverMarker>, Without<HoveredBlock>)>,
-) {
-    let (block_transform, _) = *block;
-
-    if let Some(normal) = event.event.hit.normal {
-        let face = {
-            let n = normal.normalize();
-            if n.x.abs() > 0.9 {
-                Vec3::new(n.x.signum(), 0.0, 0.0)
-            } else if n.y.abs() > 0.9 {
-                Vec3::new(0.0, n.y.signum(), 0.0)
-            } else {
-                Vec3::new(0.0, 0.0, n.z.signum())
-            }
-        };
-
-        let point = block_transform.translation + face * 0.501;
-        let rotation = Quat::from_rotation_arc(Vec3::Y, face);
-
-        hover_entity.translation = point;
-        hover_entity.rotation = rotation;
-    }
-}
-
-fn despawn_selection(
-    event: On<Pointer<Out>>,
-    hover_entity: Single<Entity, With<HoverMarker>>,
-    mut commands: Commands,
-) {
-    commands.entity(*hover_entity).despawn();
-    commands
-        .entity(event.event_target())
-        .remove::<HoveredBlock>();
+    let self_entity = event.event_target();
+    commands.entity(self_entity).insert(HoveredBlock);
 }
 
 fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {
@@ -244,5 +230,113 @@ fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos)
         .filter_map(|(_entity, hit)| hit.position.zip(hit.normal))
     {
         gizmos.arrow(point, point + normal.normalize() * 0.5, RED_500);
+    }
+}
+
+fn select_block(key_input: Res<ButtonInput<KeyCode>>, mut selected_block: ResMut<SelectedBlock>) {
+    if key_input.just_pressed(KeyCode::Digit1) {
+        if selected_block.0 == Some(Block::StandardGrass) {
+            info!("Deselecting Grass");
+            selected_block.0 = None;
+        } else {
+            info!("Selecting Grass");
+            selected_block.0 = Some(Block::StandardGrass);
+        }
+    }
+    if key_input.just_pressed(KeyCode::Digit2) {
+        if selected_block.0 == Some(Block::RedStone) {
+            info!("Deselecting RedStone");
+            selected_block.0 = None;
+        } else {
+            info!("Selecting RedStone");
+            selected_block.0 = Some(Block::RedStone);
+        }
+    }
+    if key_input.just_pressed(KeyCode::Digit3) {
+        if selected_block.0 == Some(Block::RedStoneLamp) {
+            info!("Deselecting RedStone");
+            selected_block.0 = None;
+        } else {
+            info!("Selecting RedStone");
+            selected_block.0 = Some(Block::RedStoneLamp);
+        }
+    }
+}
+
+fn request_place_selected_block(
+    mut commands: Commands,
+    selected_block: Res<SelectedBlock>,
+    mouse_buttons: Res<ButtonInput<MouseButton>>,
+) {
+    if mouse_buttons.just_pressed(MouseButton::Left) && selected_block.0.is_some() {
+        commands.trigger(PlaceBlockRequestEvent);
+    }
+}
+
+fn update_preview_block(
+    mut commands: Commands,
+    selected_block: Res<SelectedBlock>,
+    query: Query<&Transform>,
+    preview_block: Query<Entity, With<PreviewBlock>>,
+    textures: Res<Textures>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    pointers: Query<&PointerInteraction>,
+) {
+    let id = match selected_block.0 {
+        Some(Block::StandardGrass) => {
+            let mesh = Cube::get(Block::StandardGrass);
+            let grass_texture = textures.handles.get(&Block::StandardGrass);
+            Some(
+                commands
+                    .spawn((
+                        Mesh3d(meshes.add(mesh)),
+                        MeshMaterial3d(materials.add(StandardMaterial {
+                            base_color_texture: grass_texture.cloned(),
+                            perceptual_roughness: 1.0,
+                            ..default()
+                        })),
+                        Visibility::Hidden,
+                        PreviewBlock,
+                    ))
+                    .id(),
+            )
+        }
+        None => {
+            if let Ok(entity) = preview_block.single() {
+                commands.entity(entity).despawn();
+            }
+            None
+        }
+        _ => None,
+    };
+
+    if let Some(id) = id {
+        let point = pointers
+            .iter()
+            .filter_map(|interactions| interactions.get_nearest_hit())
+            .find_map(|(entity, hit)| {
+                let normal = hit.normal?;
+                let transform = query.get(*entity).ok()?;
+                Some(transform.translation + normal * 1.001)
+            })
+            .unwrap_or(Vec3::ZERO);
+
+        commands
+            .entity(id)
+            .insert(Transform::from_translation(point));
+    }
+}
+
+fn hover_block_visibility_system(
+    mut query: Query<&mut Visibility, With<PreviewBlock>>,
+    hovered_block: Query<&HoveredBlock>,
+) {
+    if let Ok(mut visibility) = query.single_mut() {
+        if !hovered_block.is_empty() {
+            *visibility = Visibility::Inherited;
+        } else {
+            *visibility = Visibility::Hidden;
+        }
     }
 }
