@@ -1,5 +1,4 @@
 use bevy::{
-    ecs::error::info,
     platform::collections::{HashMap, HashSet},
     prelude::*,
 };
@@ -10,8 +9,9 @@ use crate::{
     cube::{Cube, CubeTextures, TileCoords},
     grid_plugin::Grid,
     redstone::{
-        JunctionUVs, get_mesh, spawn_cross, spawn_redstone_mesh, spawn_tcross_east,
-        spawn_tcross_north, spawn_tcross_south, spawn_tcross_west, update_redstone_mesh,
+        JunctionUVs, get_mesh, spawn_corner_ne, spawn_corner_nw, spawn_corner_se, spawn_corner_sw,
+        spawn_cross, spawn_redstone_mesh, spawn_tcross_east, spawn_tcross_north,
+        spawn_tcross_south, spawn_tcross_west, update_redstone_mesh,
     },
     redstone_connection_plugin::JunctionType,
 };
@@ -209,6 +209,50 @@ pub fn draw(
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
                                 spawn_tcross_west(
+                                    &mut commands,
+                                    &mut materials,
+                                    &mut meshes,
+                                    texture,
+                                    position,
+                                )
+                            }
+                            JunctionType::CornerNW => {
+                                commands.entity(*entity).despawn();
+                                block_entities.entities.remove(&position);
+                                spawn_corner_nw(
+                                    &mut commands,
+                                    &mut materials,
+                                    &mut meshes,
+                                    texture,
+                                    position,
+                                )
+                            }
+                            JunctionType::CornerNE => {
+                                commands.entity(*entity).despawn();
+                                block_entities.entities.remove(&position);
+                                spawn_corner_ne(
+                                    &mut commands,
+                                    &mut materials,
+                                    &mut meshes,
+                                    texture,
+                                    position,
+                                )
+                            }
+                            JunctionType::CornerSW => {
+                                commands.entity(*entity).despawn();
+                                block_entities.entities.remove(&position);
+                                spawn_corner_sw(
+                                    &mut commands,
+                                    &mut materials,
+                                    &mut meshes,
+                                    texture,
+                                    position,
+                                )
+                            }
+                            JunctionType::CornerSE => {
+                                commands.entity(*entity).despawn();
+                                block_entities.entities.remove(&position);
+                                spawn_corner_se(
                                     &mut commands,
                                     &mut materials,
                                     &mut meshes,

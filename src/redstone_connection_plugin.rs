@@ -24,6 +24,7 @@ pub enum JunctionType {
 
 fn get_junction_type(connections: &[bool]) -> JunctionType {
     info!("{connections:?}");
+    // N, S, E, W
     match connections {
         [false, false, false, false] => JunctionType::Dot,
         [true, true, true, true] => JunctionType::Cross,
@@ -37,10 +38,10 @@ fn get_junction_type(connections: &[bool]) -> JunctionType {
         [false, false, true, true] => JunctionType::Horizontal,
         [false, false, false, true] => JunctionType::Horizontal,
         [false, false, true, false] => JunctionType::Horizontal,
-        [true, false, true, false] => JunctionType::CornerNE,
-        [true, false, false, true] => JunctionType::CornerNW,
-        [false, true, true, false] => JunctionType::CornerSE,
-        [false, true, false, true] => JunctionType::CornerSW,
+        [false, true, true, false] => JunctionType::CornerNE,
+        [true, false, false, true] => JunctionType::CornerSW,
+        [true, false, true, false] => JunctionType::CornerSE,
+        [false, true, false, true] => JunctionType::CornerNW,
         _ => JunctionType::Dot,
     }
 }

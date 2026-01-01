@@ -156,7 +156,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
         TextColor(GHOST_WHITE.into())
     ));
 
-    let grid_size = 5;
+    let grid_size = 8;
     let half_grid = grid_size / 2;
 
     let blocks: Handle<Image> = asset_server.load("cube-sheet.png");

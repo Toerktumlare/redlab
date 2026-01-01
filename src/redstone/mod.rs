@@ -306,6 +306,281 @@ pub fn spawn_tcross_west(
         .id()
 }
 
+pub fn spawn_corner_nw(
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    texture: &Handle<Image>,
+    position: IVec3,
+) -> Entity {
+    let half_line = get_mesh(JunctionUVs::HLineW);
+    let half_line2 = get_mesh(JunctionUVs::HLineS);
+    let dot = get_mesh(JunctionUVs::Dot);
+    let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
+    info!("Spawning, North West");
+
+    commands
+        .spawn((
+            Name::new("NW"),
+            Transform::from_translation(pos)
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+            GlobalTransform::default(),
+            Pickable {
+                is_hoverable: true,
+                ..default()
+            },
+            Visibility::Visible,
+            Mesh3d(meshes.add(dot)),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color_texture: Some(texture.clone()),
+                perceptual_roughness: 1.0,
+                emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                alpha_mode: AlphaMode::Blend,
+                unlit: true,
+                ..default()
+            })),
+            children![
+                (
+                    Mesh3d(meshes.add(half_line)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::X * -0.25),
+                ),
+                (
+                    Mesh3d(meshes.add(half_line2)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::Y * -0.25),
+                ),
+            ],
+        ))
+        .observe(track_hovered_block)
+        .observe(track_grid_cordinate)
+        .observe(untrack_hovered_block)
+        .id()
+}
+
+pub fn spawn_corner_ne(
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    texture: &Handle<Image>,
+    position: IVec3,
+) -> Entity {
+    let half_line = get_mesh(JunctionUVs::HLineE);
+    let half_line2 = get_mesh(JunctionUVs::HLineS);
+    let dot = get_mesh(JunctionUVs::Dot);
+    let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
+    info!("Spawning, North East");
+
+    commands
+        .spawn((
+            Name::new("NE"),
+            Transform::from_translation(pos)
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+            GlobalTransform::default(),
+            Pickable {
+                is_hoverable: true,
+                ..default()
+            },
+            Visibility::Visible,
+            Mesh3d(meshes.add(dot)),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color_texture: Some(texture.clone()),
+                perceptual_roughness: 1.0,
+                emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                alpha_mode: AlphaMode::Blend,
+                unlit: true,
+                ..default()
+            })),
+            children![
+                (
+                    Mesh3d(meshes.add(half_line)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::X * 0.25),
+                ),
+                (
+                    Mesh3d(meshes.add(half_line2)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::Y * -0.25),
+                ),
+            ],
+        ))
+        .observe(track_hovered_block)
+        .observe(track_grid_cordinate)
+        .observe(untrack_hovered_block)
+        .id()
+}
+
+pub fn spawn_corner_se(
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    texture: &Handle<Image>,
+    position: IVec3,
+) -> Entity {
+    let half_line = get_mesh(JunctionUVs::HLineE);
+    let half_line2 = get_mesh(JunctionUVs::HLineN);
+    let dot = get_mesh(JunctionUVs::Dot);
+    let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
+    info!("Spawning, South East");
+
+    commands
+        .spawn((
+            Name::new("SE"),
+            Transform::from_translation(pos)
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+            GlobalTransform::default(),
+            Pickable {
+                is_hoverable: true,
+                ..default()
+            },
+            Visibility::Visible,
+            Mesh3d(meshes.add(dot)),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color_texture: Some(texture.clone()),
+                perceptual_roughness: 1.0,
+                emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                alpha_mode: AlphaMode::Blend,
+                unlit: true,
+                ..default()
+            })),
+            children![
+                (
+                    Mesh3d(meshes.add(half_line)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::X * 0.25),
+                ),
+                (
+                    Mesh3d(meshes.add(half_line2)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::Y * 0.25),
+                ),
+            ],
+        ))
+        .observe(track_hovered_block)
+        .observe(track_grid_cordinate)
+        .observe(untrack_hovered_block)
+        .id()
+}
+
+pub fn spawn_corner_sw(
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    texture: &Handle<Image>,
+    position: IVec3,
+) -> Entity {
+    let half_line = get_mesh(JunctionUVs::HLineW);
+    let half_line2 = get_mesh(JunctionUVs::HLineS);
+    let dot = get_mesh(JunctionUVs::Dot);
+    let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
+    info!("Spawning, South West");
+
+    commands
+        .spawn((
+            Name::new("SW"),
+            Transform::from_translation(pos)
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+            GlobalTransform::default(),
+            Pickable {
+                is_hoverable: true,
+                ..default()
+            },
+            Visibility::Visible,
+            Mesh3d(meshes.add(dot)),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color_texture: Some(texture.clone()),
+                perceptual_roughness: 1.0,
+                emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                alpha_mode: AlphaMode::Blend,
+                unlit: true,
+                ..default()
+            })),
+            children![
+                (
+                    Mesh3d(meshes.add(half_line)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::X * -0.25),
+                ),
+                (
+                    Mesh3d(meshes.add(half_line2)),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+                        perceptual_roughness: 1.0,
+                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                        base_color: Color::linear_rgb(0.8, 0.0, 0.0),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::Y * 0.25),
+                ),
+            ],
+        ))
+        .observe(track_hovered_block)
+        .observe(track_grid_cordinate)
+        .observe(untrack_hovered_block)
+        .id()
+}
 pub fn spawn_redstone_mesh(
     mesh: Mesh,
     commands: &mut Commands,
@@ -393,10 +668,10 @@ pub fn get_mesh(junction_uvs: JunctionUVs) -> Mesh {
             let mut mesh = Mesh::from(Rectangle::new(1., 1.));
             mesh.remove_attribute(Mesh::ATTRIBUTE_UV_0);
             let uvs = vec![
-                [0.2, 0.4], // top-right
-                [0.1, 0.4], // top-left
-                [0.1, 0.3], // bottom-left
-                [0.2, 0.3], // bottom-right
+                [0.2, 0.3], // top-right
+                [0.1, 0.3], // top-left
+                [0.1, 0.4], // bottom-left
+                [0.2, 0.4], // bottom-right
             ];
             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
             mesh
@@ -405,10 +680,10 @@ pub fn get_mesh(junction_uvs: JunctionUVs) -> Mesh {
             let mut mesh = Mesh::from(Rectangle::new(1., 1.));
             mesh.remove_attribute(Mesh::ATTRIBUTE_UV_0);
             let uvs = vec![
-                [0.1, 0.4], // top-right
-                [0.1, 0.3], // top-left
-                [0.2, 0.3], // bottom-left
-                [0.2, 0.4], // bottom-right
+                [0.2, 0.4], // top-right
+                [0.2, 0.3], // top-left
+                [0.1, 0.3], // bottom-left
+                [0.1, 0.4], // bottom-right
             ];
             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
             mesh
@@ -441,10 +716,10 @@ pub fn get_mesh(junction_uvs: JunctionUVs) -> Mesh {
             let mut mesh = Mesh::from(Rectangle::new(0.5, 1.));
             mesh.remove_attribute(Mesh::ATTRIBUTE_UV_0);
             let uvs = vec![
-                [0.1, 0.35], // top-right
-                [0.1, 0.3],  // top-left
-                [0.2, 0.3],  // bottom-left
-                [0.2, 0.35], // bottom-right
+                [0.2, 0.35], // top-right
+                [0.2, 0.3],  // top-left
+                [0.1, 0.3],  // bottom-left
+                [0.1, 0.35], // bottom-right
             ];
             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
             mesh
@@ -465,10 +740,10 @@ pub fn get_mesh(junction_uvs: JunctionUVs) -> Mesh {
             let mut mesh = Mesh::from(Rectangle::new(1., 1.));
             mesh.remove_attribute(Mesh::ATTRIBUTE_UV_0);
             let uvs = vec![
-                [0.1, 0.4], // top-right
-                [0.1, 0.3], // top-left
-                [0.0, 0.3], // bottom-left
-                [0.0, 0.4], // bottom-right
+                [0.1, 0.3], // top-right
+                [0.0, 0.3], // top-left
+                [0.0, 0.4], // bottom-left
+                [0.1, 0.4], // bottom-right
             ];
             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
             mesh
