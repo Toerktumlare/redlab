@@ -1,69 +1,95 @@
 use bevy::{
-    color::palettes::tailwind::RED_500, picking::pointer::PointerInteraction, prelude::*,
-    window::WindowResolution,
+    color::palettes::tailwind::RED_500, ecs::system::SystemParam,
+    picking::pointer::PointerInteraction, prelude::*, window::WindowResolution,
 };
 use bevy_prng::WyRand;
-use bevy_rand::{plugin::EntropyPlugin, prelude::GlobalRng};
+use bevy_rand::plugin::EntropyPlugin;
 use rand_core::RngCore;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use bevy::color::palettes::css::GHOST_WHITE;
 
 use crate::{
-    block_interaction_plugin::BlockInteractionPlugin,
-    block_lifecycle_plugin::BlockLifecyclePlugin,
-    block_selection_plugin::{
-        BlockSelectionPlugin, track_grid_cordinate, track_hovered_block, untrack_hovered_block,
+    block_interaction_plugin::{
+        BlockInteractionPlugin, request_delete_hovered_block, request_place_selected_block,
     },
-    cube::{Cube, CubeTextures, TileCoords},
+    block_lifecycle_plugin::{BlockLifecyclePlugin, draw},
+    block_selection_plugin::BlockSelectionPlugin,
+    block_texture_updater::grass_to_dirt_updater,
+    grid_plugin::{BlockChange, GridPlugin, PlaceRequest, grid_apply_changes, queue_block_change},
     main_camera::MainCameraPlugin,
+    redstone_connection_plugin::{JunctionType, update_redstone_system},
+    shaders::block::BlockMaterial,
 };
 
 mod block_interaction_plugin;
 mod block_lifecycle_plugin;
 mod block_selection_plugin;
+mod block_texture_updater;
 mod cube;
+mod grid_plugin;
 mod main_camera;
 mod pixel_picking_plugin;
+mod redstone;
+mod redstone_connection_plugin;
+mod shaders;
 
-#[derive(Resource, Default)]
-struct Grid {
-    map: HashMap<IVec3, Entity>,
+#[derive(Debug)]
+pub struct BlockData {
+    block_type: BlockType,
 }
 
-#[derive(Component)]
-struct PreviewBlock;
-
-#[derive(Component)]
-struct HoveredBlock;
-
-#[derive(Resource, Default)]
-struct HoveredBlockPosition {
-    position: Option<IVec3>,
-    normal: Option<Vec3>,
+impl Default for BlockData {
+    fn default() -> Self {
+        Self {
+            block_type: BlockType::Air,
+        }
+    }
 }
 
 #[derive(Resource, Default)]
-struct SelectedBlock(Option<Block>);
+struct SelectedBlock(Option<BlockType>);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-enum Block {
+enum BlockType {
+    Air,
     StandardGrass,
+    Dirt,
     RedStone,
-    Dust,
-    RedStoneLamp,
+    RedStoneLamp { powered: bool },
+    Dust { shape: JunctionType, power: u8 },
 }
 
 #[derive(Resource, Default)]
-struct Textures {
-    handles: HashMap<Block, Handle<Image>>,
+pub struct Textures {
+    handles: HashMap<TextureAtlas, Handle<Image>>,
 }
 
-#[derive(Event)]
-struct PlaceBlockRequestEvent;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum TextureAtlas {
+    Blocks,
+}
+
+#[derive(SystemParam)]
+pub struct SpawnCtx<'w, 's> {
+    pub command: Commands<'w, 's>,
+    pub meshes: ResMut<'w, Assets<Mesh>>,
+    pub materials: ResMut<'w, Assets<StandardMaterial>>,
+    pub atlas: Res<'w, Textures>,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+enum GameLoop {
+    Input,
+    Apply,
+    React,
+    Cleanup,
+    Render,
+}
 
 fn main() {
     App::new()
+        .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(50)))
         .add_plugins(EntropyPlugin::<WyRand>::default())
         .add_plugins(
             DefaultPlugins
@@ -78,41 +104,42 @@ fn main() {
                 })
                 .set(ImagePlugin::default_nearest()),
         )
+        .add_plugins(MaterialPlugin::<BlockMaterial>::default())
         .add_plugins((
+            GridPlugin,
             MainCameraPlugin,
             BlockSelectionPlugin,
             BlockInteractionPlugin,
             BlockLifecyclePlugin,
         ))
-        .init_resource::<Grid>()
         .init_resource::<Textures>()
-        .init_resource::<HoveredBlockPosition>()
         .init_resource::<SelectedBlock>()
         .add_systems(Startup, startup)
+        .add_systems(Update, (draw_on_hover_arrow, select_block))
         .add_systems(
             Update,
-            (
-                select_block,
-                request_place_selected_block,
-                update_preview_block.run_if(
-                    resource_changed::<SelectedBlock>.and(not(resource_added::<SelectedBlock>)),
-                ),
-                draw_on_hover_arrow,
-                hover_block_visibility_system,
-            ),
+            (request_place_selected_block, request_delete_hovered_block).in_set(GameLoop::Input),
         )
+        .add_systems(Update, grid_apply_changes.in_set(GameLoop::Apply))
+        .add_systems(Update, grass_to_dirt_updater.in_set(GameLoop::React))
+        .add_systems(Update, update_redstone_system.in_set(GameLoop::React))
+        .add_systems(Update, draw.in_set(GameLoop::Render))
+        .configure_sets(
+            Update,
+            (
+                GameLoop::Input,
+                GameLoop::Apply,
+                GameLoop::React,
+                GameLoop::Cleanup,
+                GameLoop::Render,
+            )
+                .chain(),
+        )
+        .add_observer(queue_block_change)
         .run();
 }
 
-fn startup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut rng: Single<&mut WyRand, With<GlobalRng>>,
-    mut grid: ResMut<Grid>,
-    mut textures: ResMut<Textures>,
-) {
+fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures: ResMut<Textures>) {
     commands.spawn((
         Text::new("(1) Dust  (2) RedBlock  (3) Lamp  (4) Lever  (0) Erase   (Space) Play/Pause  (S) Step  (R) Reset  (C) Cycle camera"),
         TextFont {
@@ -129,73 +156,22 @@ fn startup(
         TextColor(GHOST_WHITE.into())
     ));
 
-    let grid_size = 4;
+    let grid_size = 5;
     let half_grid = grid_size / 2;
 
-    let grass_texture: Handle<Image> = asset_server.load("cube-sheet.png");
-    textures.handles.insert(Block::StandardGrass, grass_texture);
-    let grass_texture = textures.handles.get(&Block::StandardGrass);
+    let blocks: Handle<Image> = asset_server.load("cube-sheet.png");
+    textures.handles.insert(TextureAtlas::Blocks, blocks);
 
     for x in 0..grid_size {
         for z in 0..grid_size {
-            for y in 0..2 {
-                let r = random_f32(&mut rng);
-                let g = random_f32(&mut rng);
-                let b = random_f32(&mut rng);
-
-                let pos_x = x - half_grid;
-                let pos_z = z - half_grid;
-                if y == 0 {
-                    let textures = CubeTextures::new(
-                        Some(TileCoords::new(0, 1)),
-                        Some(TileCoords::new(1, 1)),
-                        Some(TileCoords::new(2, 1)),
-                        Some(TileCoords::new(3, 1)),
-                        Some(TileCoords::new(4, 1)),
-                        Some(TileCoords::new(5, 1)),
-                    );
-                    let mesh = Cube::new(textures);
-
-                    info_once!("{mesh:#?}");
-                    let entity = commands
-                        .spawn((
-                            Mesh3d(meshes.add(mesh)),
-                            MeshMaterial3d(materials.add(StandardMaterial {
-                                base_color_texture: grass_texture.cloned(),
-                                perceptual_roughness: 1.0,
-                                ..default()
-                            })),
-                            Transform::from_xyz(pos_x as f32, y as f32, pos_z as f32),
-                            Pickable {
-                                is_hoverable: true,
-                                ..default()
-                            },
-                        ))
-                        .observe(track_hovered_block)
-                        .observe(track_grid_cordinate)
-                        .observe(untrack_hovered_block)
-                        .id();
-                    grid.map.insert(IVec3::new(pos_x, y, pos_z), entity);
-                } else {
-                    let u = rng.next_u32();
-                    let should_spawn = u < (u32::MAX / 10);
-                    if false {
-                        let entity = commands
-                            .spawn((
-                                Name::new("TopRow"),
-                                Mesh3d(meshes.add(Cuboid::default())),
-                                MeshMaterial3d(materials.add(Color::srgb(r, g, b))),
-                                Transform::from_xyz(pos_x as f32, y as f32, pos_z as f32),
-                                Pickable {
-                                    is_hoverable: true,
-                                    ..default()
-                                },
-                            ))
-                            .id();
-                        grid.map.insert(IVec3::new(pos_x, y, pos_z), entity);
-                    }
-                }
-            }
+            let pos_x = x - half_grid;
+            let pos_z = z - half_grid;
+            let position = IVec3::new(pos_x, 0, pos_z);
+            commands.trigger(BlockChange::Place(PlaceRequest {
+                block_type: BlockType::StandardGrass,
+                normal: IVec3::ZERO,
+                position,
+            }));
         }
     }
 
@@ -210,19 +186,6 @@ fn random_f32(rng: &mut WyRand) -> f32 {
     (v as f32) / (u32::MAX as f32) // 0.0 .. 1.0
 }
 
-fn spawn_selection(
-    event: On<Pointer<Over>>,
-    mut commands: Commands,
-    hover_entity: Query<Entity, With<PreviewBlock>>,
-    mut selected_block: ResMut<SelectedBlock>,
-) {
-    if hover_entity.single().is_err() && selected_block.0.is_some() {
-        selected_block.set_changed();
-    }
-    let self_entity = event.event_target();
-    commands.entity(self_entity).insert(HoveredBlock);
-}
-
 fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {
     for (point, normal) in pointers
         .iter()
@@ -235,108 +198,42 @@ fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos)
 
 fn select_block(key_input: Res<ButtonInput<KeyCode>>, mut selected_block: ResMut<SelectedBlock>) {
     if key_input.just_pressed(KeyCode::Digit1) {
-        if selected_block.0 == Some(Block::StandardGrass) {
+        if let Some(BlockType::StandardGrass) = selected_block.0 {
             info!("Deselecting Grass");
             selected_block.0 = None;
         } else {
             info!("Selecting Grass");
-            selected_block.0 = Some(Block::StandardGrass);
+            selected_block.0 = Some(BlockType::StandardGrass);
         }
     }
     if key_input.just_pressed(KeyCode::Digit2) {
-        if selected_block.0 == Some(Block::RedStone) {
+        if let Some(BlockType::RedStone) = selected_block.0 {
             info!("Deselecting RedStone");
             selected_block.0 = None;
         } else {
             info!("Selecting RedStone");
-            selected_block.0 = Some(Block::RedStone);
+            selected_block.0 = Some(BlockType::RedStone);
         }
     }
     if key_input.just_pressed(KeyCode::Digit3) {
-        if selected_block.0 == Some(Block::RedStoneLamp) {
-            info!("Deselecting RedStone");
+        if let Some(BlockType::RedStoneLamp { .. }) = selected_block.0 {
+            info!("Deselecting RedStoneLamp");
             selected_block.0 = None;
         } else {
-            info!("Selecting RedStone");
-            selected_block.0 = Some(Block::RedStoneLamp);
+            info!("Selecting RedStoneLamp");
+            selected_block.0 = Some(BlockType::RedStoneLamp { powered: false });
         }
     }
-}
-
-fn request_place_selected_block(
-    mut commands: Commands,
-    selected_block: Res<SelectedBlock>,
-    mouse_buttons: Res<ButtonInput<MouseButton>>,
-) {
-    if mouse_buttons.just_pressed(MouseButton::Left) && selected_block.0.is_some() {
-        commands.trigger(PlaceBlockRequestEvent);
-    }
-}
-
-fn update_preview_block(
-    mut commands: Commands,
-    selected_block: Res<SelectedBlock>,
-    query: Query<&Transform>,
-    preview_block: Query<Entity, With<PreviewBlock>>,
-    textures: Res<Textures>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    pointers: Query<&PointerInteraction>,
-) {
-    let id = match selected_block.0 {
-        Some(Block::StandardGrass) => {
-            let mesh = Cube::get(Block::StandardGrass);
-            let grass_texture = textures.handles.get(&Block::StandardGrass);
-            Some(
-                commands
-                    .spawn((
-                        Mesh3d(meshes.add(mesh)),
-                        MeshMaterial3d(materials.add(StandardMaterial {
-                            base_color_texture: grass_texture.cloned(),
-                            perceptual_roughness: 1.0,
-                            ..default()
-                        })),
-                        Visibility::Hidden,
-                        PreviewBlock,
-                    ))
-                    .id(),
-            )
-        }
-        None => {
-            if let Ok(entity) = preview_block.single() {
-                commands.entity(entity).despawn();
-            }
-            None
-        }
-        _ => None,
-    };
-
-    if let Some(id) = id {
-        let point = pointers
-            .iter()
-            .filter_map(|interactions| interactions.get_nearest_hit())
-            .find_map(|(entity, hit)| {
-                let normal = hit.normal?;
-                let transform = query.get(*entity).ok()?;
-                Some(transform.translation + normal * 1.001)
-            })
-            .unwrap_or(Vec3::ZERO);
-
-        commands
-            .entity(id)
-            .insert(Transform::from_translation(point));
-    }
-}
-
-fn hover_block_visibility_system(
-    mut query: Query<&mut Visibility, With<PreviewBlock>>,
-    hovered_block: Query<&HoveredBlock>,
-) {
-    if let Ok(mut visibility) = query.single_mut() {
-        if !hovered_block.is_empty() {
-            *visibility = Visibility::Inherited;
+    if key_input.just_pressed(KeyCode::Digit4) {
+        if let Some(BlockType::Dust { .. }) = selected_block.0 {
+            info!("Deselecting Dust");
+            selected_block.0 = None;
         } else {
-            *visibility = Visibility::Hidden;
+            info!("Selecting Dust");
+            selected_block.0 = Some(BlockType::Dust {
+                shape: JunctionType::Dot,
+                power: 0,
+            });
         }
     }
 }

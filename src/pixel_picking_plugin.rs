@@ -1,5 +1,4 @@
 use bevy::camera::visibility::RenderLayers;
-use bevy::ecs::error::info;
 use bevy::picking::PickingSystems;
 use bevy::picking::backend::{HitData, PointerHits};
 use bevy::picking::pointer::PointerId;

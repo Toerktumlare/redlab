@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 use crate::{
     SelectedBlock,
-    block_lifecycle_plugin::{PlaceBlockRequestEvent, RemoveBlockRequestEvent},
     block_selection_plugin::HoveredBlockInfo,
+    grid_plugin::{BlockChange, PlaceRequest, RemoveRequest},
 };
 
 pub struct BlockInteractionPlugin;
@@ -24,14 +24,20 @@ pub fn request_place_selected_block(
     hovered_block: Res<HoveredBlockInfo>,
 ) {
     if mouse_buttons.just_pressed(MouseButton::Left)
-        && let Some(block) = selected_block.0
+        && let Some(block_type) = selected_block.0
         && let Some(position) = hovered_block.position
         && let Some(normal) = hovered_block.normal
     {
-        info!("Clicked mouse buttyn");
-        let position = (position.as_vec3() + normal).round().as_ivec3();
+        info!(
+            "position: {}, normal: {}, block: {:?}",
+            position, normal, block_type,
+        );
 
-        commands.trigger(PlaceBlockRequestEvent { position, block });
+        commands.trigger(BlockChange::Place(PlaceRequest {
+            position,
+            normal,
+            block_type,
+        }));
     }
 }
 
@@ -41,8 +47,8 @@ pub fn request_delete_hovered_block(
     hovered_block: Res<HoveredBlockInfo>,
 ) {
     if mouse_buttons.just_pressed(MouseButton::Right)
-        && let Some(entity) = hovered_block.entity
+        && let Some(position) = hovered_block.position
     {
-        commands.trigger(RemoveBlockRequestEvent { entity });
+        commands.trigger(BlockChange::Remove(RemoveRequest { position }));
     }
 }

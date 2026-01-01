@@ -5,7 +5,7 @@ const EPS: f32 = 1e-4;
 #[derive(Resource, Default, Debug)]
 pub struct HoveredBlockInfo {
     pub position: Option<IVec3>,
-    pub normal: Option<Vec3>,
+    pub normal: Option<IVec3>,
     pub entity: Option<Entity>,
 }
 
@@ -47,8 +47,7 @@ pub fn track_grid_cordinate(event: On<Pointer<Move>>, mut hovered: ResMut<Hovere
     if let Some(position) = hit_data.position
         && let Some(normal) = hit_data.normal
     {
-        let face = face_from_normal(&normal);
-        let inside_hit = position - (face * EPS);
+        let inside_hit = position - (normal * EPS);
 
         let hovered_block = IVec3::new(
             inside_hit.x.round() as i32,
@@ -56,25 +55,25 @@ pub fn track_grid_cordinate(event: On<Pointer<Move>>, mut hovered: ResMut<Hovere
             inside_hit.z.round() as i32,
         );
 
+        let face = face_from_normal(&normal);
+
         *hovered = HoveredBlockInfo {
             position: Some(hovered_block),
             normal: Some(face),
             entity: Some(target),
         };
-
-        info!("{hovered:?}");
     }
 }
 
 /// Clamps normal to a proper face since we might get floating point problems
 /// For instance (0.99997,0,0) is fixed to (1,0,0)
-fn face_from_normal(normal: &Vec3) -> Vec3 {
+fn face_from_normal(normal: &Vec3) -> IVec3 {
     let n = normal.normalize();
     if n.x.abs() > 0.9 {
-        Vec3::new(n.x.signum(), 0.0, 0.0)
+        IVec3::new(n.x.signum() as i32, 0, 0)
     } else if n.y.abs() > 0.9 {
-        Vec3::new(0.0, n.y.signum(), 0.0)
+        IVec3::new(0, n.y.signum() as i32, 0)
     } else {
-        Vec3::new(0.0, 0.0, n.z.signum())
+        IVec3::new(0, 0, n.z.signum() as i32)
     }
 }
