@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::{BlockData, BlockType, block_lifecycle_plugin::DirtyBlocks};
+use crate::{BlockData, BlockType, render::DirtyBlocks, render::DirtyRedstone};
 
 #[derive(Event, Clone, Debug)]
 pub enum BlockChange {
@@ -83,6 +83,7 @@ pub fn grid_apply_changes(
     mut queue: ResMut<BlockChangeQueue>,
     mut grid: ResMut<Grid>,
     mut dirty_blocks: ResMut<DirtyBlocks>,
+    mut dirty_redstone: ResMut<DirtyRedstone>,
 ) {
     for change in queue.drain() {
         let changed_positions = match change {
@@ -93,7 +94,18 @@ pub fn grid_apply_changes(
 
         if let Some(changed_positions) = changed_positions {
             for pos in changed_positions {
-                dirty_blocks.mark(pos);
+                if let Some(block_data) = grid.get(pos) {
+                    match block_data.block_type {
+                        BlockType::RedStoneLamp { .. } | BlockType::Dust { .. } => {
+                            dirty_redstone.mark(pos)
+                        }
+                        _ => dirty_blocks.mark(pos),
+                    }
+                } else {
+                    // Ugly solution, main renderer will delete any block_type
+                    // Should be its own system
+                    dirty_blocks.mark(pos);
+                };
             }
         }
     }

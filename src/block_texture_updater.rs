@@ -1,7 +1,7 @@
 use crate::{
     BlockType,
-    block_lifecycle_plugin::DirtyBlocks,
     grid_plugin::{BlockChange, BlockChangeQueue, Grid, UpdateRequest},
+    render::DirtyBlocks,
 };
 use bevy::prelude::*;
 

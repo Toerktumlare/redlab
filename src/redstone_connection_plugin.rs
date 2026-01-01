@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 use crate::{
     BlockData, BlockType,
-    block_lifecycle_plugin::DirtyBlocks,
     grid_plugin::{BlockChange, BlockChangeQueue, Grid},
+    render::DirtyRedstone,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -47,7 +47,7 @@ fn get_junction_type(connections: &[bool]) -> JunctionType {
 }
 
 pub fn update_redstone_system(
-    dirty_blocks: Res<DirtyBlocks>,
+    dirty_blocks: Res<DirtyRedstone>,
     grid: Res<Grid>,
     mut queue: ResMut<BlockChangeQueue>,
 ) {

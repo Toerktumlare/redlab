@@ -5,7 +5,7 @@ use bevy::{
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
 use rand_core::RngCore;
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use bevy::color::palettes::css::GHOST_WHITE;
 
@@ -13,17 +13,18 @@ use crate::{
     block_interaction_plugin::{
         BlockInteractionPlugin, request_delete_hovered_block, request_place_selected_block,
     },
-    block_lifecycle_plugin::{BlockLifecyclePlugin, draw},
     block_selection_plugin::BlockSelectionPlugin,
     block_texture_updater::grass_to_dirt_updater,
-    grid_plugin::{BlockChange, GridPlugin, PlaceRequest, grid_apply_changes, queue_block_change},
+    grid_plugin::{
+        BlockChange, Grid, GridPlugin, PlaceRequest, grid_apply_changes, queue_block_change,
+    },
     main_camera::MainCameraPlugin,
     redstone_connection_plugin::{JunctionType, update_redstone_system},
+    render::{RenderPlugin, block_renderer::render_blocks, redstone_renderer::render_redstone},
     shaders::block::BlockMaterial,
 };
 
 mod block_interaction_plugin;
-mod block_lifecycle_plugin;
 mod block_selection_plugin;
 mod block_texture_updater;
 mod cube;
@@ -32,6 +33,7 @@ mod main_camera;
 mod pixel_picking_plugin;
 mod redstone;
 mod redstone_connection_plugin;
+mod render;
 mod shaders;
 
 #[derive(Debug)]
@@ -72,10 +74,11 @@ pub enum TextureAtlas {
 
 #[derive(SystemParam)]
 pub struct SpawnCtx<'w, 's> {
-    pub command: Commands<'w, 's>,
+    pub commands: Commands<'w, 's>,
     pub meshes: ResMut<'w, Assets<Mesh>>,
     pub materials: ResMut<'w, Assets<StandardMaterial>>,
     pub atlas: Res<'w, Textures>,
+    pub grid: Res<'w, Grid>,
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -89,7 +92,6 @@ enum GameLoop {
 
 fn main() {
     App::new()
-        .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(50)))
         .add_plugins(EntropyPlugin::<WyRand>::default())
         .add_plugins(
             DefaultPlugins
@@ -110,7 +112,7 @@ fn main() {
             MainCameraPlugin,
             BlockSelectionPlugin,
             BlockInteractionPlugin,
-            BlockLifecyclePlugin,
+            RenderPlugin,
         ))
         .init_resource::<Textures>()
         .init_resource::<SelectedBlock>()
@@ -123,7 +125,12 @@ fn main() {
         .add_systems(Update, grid_apply_changes.in_set(GameLoop::Apply))
         .add_systems(Update, grass_to_dirt_updater.in_set(GameLoop::React))
         .add_systems(Update, update_redstone_system.in_set(GameLoop::React))
-        .add_systems(Update, draw.in_set(GameLoop::Render))
+        .add_systems(
+            Update,
+            (render_blocks, render_redstone)
+                .chain()
+                .in_set(GameLoop::Render),
+        )
         .configure_sets(
             Update,
             (
