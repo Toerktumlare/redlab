@@ -19,9 +19,11 @@ use crate::{
         BlockChange, Grid, GridPlugin, PlaceRequest, grid_apply_changes, queue_block_change,
     },
     main_camera::MainCameraPlugin,
+    materials::redstone::{RedstoneColors, RedstoneMaterials, setup_redstone_materials},
     redstone_connection_plugin::{JunctionType, update_redstone_system},
     render::{RenderPlugin, block_renderer::render_blocks, redstone_renderer::render_redstone},
     shaders::block::BlockMaterial,
+    systems::propagate_redstone::{propagate_redstone, update_redstone_lamps},
 };
 
 mod block_interaction_plugin;
@@ -30,11 +32,13 @@ mod block_texture_updater;
 mod cube;
 mod grid_plugin;
 mod main_camera;
+mod materials;
 mod pixel_picking_plugin;
 mod redstone;
 mod redstone_connection_plugin;
 mod render;
 mod shaders;
+mod systems;
 
 #[derive(Debug)]
 pub struct BlockData {
@@ -60,6 +64,23 @@ enum BlockType {
     RedStone,
     RedStoneLamp { powered: bool },
     Dust { shape: JunctionType, power: u8 },
+}
+
+impl BlockType {
+    pub fn power(&self) -> u8 {
+        match *self {
+            BlockType::Dust { power, .. } => power,
+            BlockType::RedStone => 15,
+            _ => 0,
+        }
+    }
+
+    pub fn is_conductor(&self) -> bool {
+        matches!(
+            &self,
+            BlockType::Dust { .. } | BlockType::RedStoneLamp { .. } | BlockType::RedStone
+        )
+    }
 }
 
 #[derive(Resource, Default)]
@@ -116,7 +137,8 @@ fn main() {
         ))
         .init_resource::<Textures>()
         .init_resource::<SelectedBlock>()
-        .add_systems(Startup, startup)
+        .init_resource::<RedstoneColors>()
+        .add_systems(Startup, (startup, setup_redstone_materials).chain())
         .add_systems(Update, (draw_on_hover_arrow, select_block))
         .add_systems(
             Update,
@@ -124,10 +146,13 @@ fn main() {
         )
         .add_systems(Update, grid_apply_changes.in_set(GameLoop::Apply))
         .add_systems(Update, grass_to_dirt_updater.in_set(GameLoop::React))
-        .add_systems(Update, update_redstone_system.in_set(GameLoop::React))
         .add_systems(
             Update,
-            (render_blocks, render_redstone)
+            (update_redstone_system, propagate_redstone).in_set(GameLoop::React),
+        )
+        .add_systems(
+            Update,
+            (render_blocks, render_redstone, update_redstone_lamps)
                 .chain()
                 .in_set(GameLoop::Render),
         )

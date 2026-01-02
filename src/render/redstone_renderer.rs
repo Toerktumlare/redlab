@@ -5,15 +5,21 @@ use crate::{
     block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     cube::{Cube, CubeTextures, TileCoords},
     grid_plugin::Grid,
+    materials::redstone::RedstoneMaterials,
     redstone::{
         JunctionUVs, get_mesh, spawn_corner_ne, spawn_corner_nw, spawn_corner_se, spawn_corner_sw,
         spawn_cross, spawn_redstone_mesh, spawn_tcross_east, spawn_tcross_north,
         spawn_tcross_south, spawn_tcross_west, update_redstone_mesh,
     },
     redstone_connection_plugin::JunctionType,
-    render::BlockEntities,
-    render::DirtyRedstone,
+    render::{BlockEntities, DirtyRedstone},
 };
+
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Position(pub IVec3);
+
+#[derive(Component, Debug, Clone, Copy)]
+pub struct RedstoneLamp;
 
 pub fn render_redstone(
     mut commands: Commands,
@@ -23,6 +29,7 @@ pub fn render_redstone(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     texture_map: ResMut<Textures>,
+    redstone_materials: Res<RedstoneMaterials>,
 ) {
     let texture = texture_map.handles.get(&TextureAtlas::Blocks).unwrap();
 
@@ -32,17 +39,29 @@ pub fn render_redstone(
         if let Some(block_data) = grid.get(position) {
             match entity {
                 Some(entity) => match block_data.block_type {
-                    BlockType::RedStoneLamp { .. } => {
-                        let textures = CubeTextures::new(
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                        );
+                    BlockType::RedStoneLamp { powered } => {
+                        let textures = if powered {
+                            CubeTextures::new(
+                                Some(TileCoords::new(2, 2)),
+                                Some(TileCoords::new(2, 2)),
+                                Some(TileCoords::new(2, 2)),
+                                Some(TileCoords::new(2, 2)),
+                                Some(TileCoords::new(2, 2)),
+                                Some(TileCoords::new(2, 2)),
+                            )
+                        } else {
+                            CubeTextures::new(
+                                Some(TileCoords::new(1, 2)),
+                                Some(TileCoords::new(1, 2)),
+                                Some(TileCoords::new(1, 2)),
+                                Some(TileCoords::new(1, 2)),
+                                Some(TileCoords::new(1, 2)),
+                                Some(TileCoords::new(1, 2)),
+                            )
+                        };
                         let mesh = Cube::new(textures);
                         commands.entity(*entity).insert((
+                            Name::new("RedstoneLamp"),
                             Mesh3d(meshes.add(mesh)),
                             MeshMaterial3d(materials.add(StandardMaterial {
                                 base_color_texture: Some(texture.clone()),
@@ -54,108 +73,64 @@ pub fn render_redstone(
                                 is_hoverable: true,
                                 ..default()
                             },
+                            Position(position),
+                            RedstoneLamp,
                         ));
                     }
-                    BlockType::Dust { shape, .. } => {
+                    BlockType::Dust { shape, power } => {
+                        info!("Render redstone shape: {shape:?}, power: {power}");
+                        let material = redstone_materials.get(shape.into(), power.into()).unwrap();
                         let entity = match shape {
                             JunctionType::Cross => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_cross(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                spawn_cross(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::TNorth => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_tcross_north(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                spawn_tcross_north(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::TSouth => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_tcross_south(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                spawn_tcross_south(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::TEast => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_tcross_east(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                spawn_tcross_east(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::TWest => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_tcross_west(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                spawn_tcross_west(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::CornerNW => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_corner_nw(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                spawn_corner_nw(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::CornerNE => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_corner_ne(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                let material =
+                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+                                spawn_corner_ne(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::CornerSW => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_corner_sw(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                let material =
+                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+                                spawn_corner_sw(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::CornerSE => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                spawn_corner_se(
-                                    &mut commands,
-                                    &mut materials,
-                                    &mut meshes,
-                                    texture,
-                                    position,
-                                )
+                                let material =
+                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+                                spawn_corner_se(&mut commands, &mut meshes, position, material)
                             }
                             _ => {
                                 let mesh = match shape {
@@ -164,14 +139,17 @@ pub fn render_redstone(
                                     _ => get_mesh(JunctionUVs::Dot),
                                 };
                                 commands.entity(*entity).despawn_children();
+
+                                let material =
+                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+
                                 update_redstone_mesh(
                                     entity,
                                     mesh,
                                     &mut commands,
-                                    &mut materials,
                                     &mut meshes,
                                     position,
-                                    texture,
+                                    material,
                                 )
                             }
                         };
@@ -198,6 +176,7 @@ pub fn render_redstone(
                         let mesh = Cube::new(textures);
                         let entity = commands
                             .spawn((
+                                Name::new("RedstoneLamp"),
                                 Mesh3d(meshes.add(mesh)),
                                 MeshMaterial3d(materials.add(StandardMaterial {
                                     base_color_texture: Some(texture.clone()),
@@ -209,6 +188,8 @@ pub fn render_redstone(
                                     is_hoverable: true,
                                     ..default()
                                 },
+                                Position(position),
+                                RedstoneLamp,
                             ))
                             .observe(track_hovered_block)
                             .observe(track_grid_cordinate)
@@ -216,19 +197,18 @@ pub fn render_redstone(
                             .id();
                         block_entities.entities.insert(position, entity);
                     }
-                    BlockType::Dust { shape, .. } => {
+                    BlockType::Dust { shape, power } => {
+                        let material = redstone_materials.get(shape.into(), power.into()).unwrap();
                         let mesh = match shape {
                             JunctionType::Horizontal => get_mesh(JunctionUVs::Horizontal),
                             JunctionType::Vertical => get_mesh(JunctionUVs::Vertical),
                             _ => get_mesh(JunctionUVs::Dot),
                         };
                         let entity = spawn_redstone_mesh(
-                            mesh,
+                            meshes.add(mesh),
                             &mut commands,
-                            &mut materials,
-                            &mut meshes,
                             position,
-                            texture,
+                            material,
                         );
                         block_entities.entities.insert(position, entity);
                     }
