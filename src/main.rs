@@ -4,7 +4,6 @@ use bevy::{
 };
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
-use rand_core::RngCore;
 use std::collections::HashMap;
 
 use bevy::color::palettes::css::GHOST_WHITE;
@@ -19,7 +18,8 @@ use crate::{
         BlockChange, Grid, GridPlugin, PlaceRequest, grid_apply_changes, queue_block_change,
     },
     main_camera::MainCameraPlugin,
-    materials::redstone::{RedstoneColors, RedstoneMaterials, setup_redstone_materials},
+    materials::redstone::{RedstoneColors, setup_redstone_materials},
+    meshes::{MeshRegistry, setup_mesh_registry},
     redstone_connection_plugin::{JunctionType, update_redstone_system},
     render::{RenderPlugin, block_renderer::render_blocks, redstone_renderer::render_redstone},
     shaders::block::BlockMaterial,
@@ -29,10 +29,10 @@ use crate::{
 mod block_interaction_plugin;
 mod block_selection_plugin;
 mod block_texture_updater;
-mod cube;
 mod grid_plugin;
 mod main_camera;
 mod materials;
+mod meshes;
 mod pixel_picking_plugin;
 mod redstone;
 mod redstone_connection_plugin;
@@ -63,6 +63,7 @@ enum BlockType {
     Dirt,
     RedStone,
     RedStoneLamp { powered: bool },
+    RedStoneTorch { powered: bool },
     Dust { shape: JunctionType, power: u8 },
 }
 
@@ -71,6 +72,7 @@ impl BlockType {
         match *self {
             BlockType::Dust { power, .. } => power,
             BlockType::RedStone => 15,
+            BlockType::RedStoneTorch { .. } => 15,
             _ => 0,
         }
     }
@@ -78,7 +80,10 @@ impl BlockType {
     pub fn is_conductor(&self) -> bool {
         matches!(
             &self,
-            BlockType::Dust { .. } | BlockType::RedStoneLamp { .. } | BlockType::RedStone
+            BlockType::Dust { .. }
+                | BlockType::RedStoneLamp { .. }
+                | BlockType::RedStone
+                | BlockType::RedStoneTorch { .. }
         )
     }
 }
@@ -100,6 +105,7 @@ pub struct SpawnCtx<'w, 's> {
     pub materials: ResMut<'w, Assets<StandardMaterial>>,
     pub atlas: Res<'w, Textures>,
     pub grid: Res<'w, Grid>,
+    pub mesh_registry: Res<'w, MeshRegistry>,
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -138,7 +144,10 @@ fn main() {
         .init_resource::<Textures>()
         .init_resource::<SelectedBlock>()
         .init_resource::<RedstoneColors>()
-        .add_systems(Startup, (startup, setup_redstone_materials).chain())
+        .add_systems(
+            Startup,
+            (startup, setup_redstone_materials, setup_mesh_registry).chain(),
+        )
         .add_systems(Update, (draw_on_hover_arrow, select_block))
         .add_systems(
             Update,
@@ -188,7 +197,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
         TextColor(GHOST_WHITE.into())
     ));
 
-    let grid_size = 8;
+    let grid_size = 4;
     let half_grid = grid_size / 2;
 
     let blocks: Handle<Image> = asset_server.load("cube-sheet.png");
@@ -213,10 +222,10 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
     });
 }
 
-fn random_f32(rng: &mut WyRand) -> f32 {
-    let v = rng.next_u32(); // 0 ..= u32::MAX
-    (v as f32) / (u32::MAX as f32) // 0.0 .. 1.0
-}
+// fn random_f32(rng: &mut WyRand) -> f32 {
+//     let v = rng.next_u32(); // 0 ..= u32::MAX
+//     (v as f32) / (u32::MAX as f32) // 0.0 .. 1.0
+// }
 
 fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {
     for (point, normal) in pointers
@@ -266,6 +275,16 @@ fn select_block(key_input: Res<ButtonInput<KeyCode>>, mut selected_block: ResMut
                 shape: JunctionType::Dot,
                 power: 0,
             });
+        }
+    }
+
+    if key_input.just_pressed(KeyCode::Digit5) {
+        if let Some(BlockType::RedStoneTorch { .. }) = selected_block.0 {
+            info!("Deselecting RedStone Torch");
+            selected_block.0 = None;
+        } else {
+            info!("Selecting RedStoneTorch");
+            selected_block.0 = Some(BlockType::RedStoneTorch { powered: true });
         }
     }
 }

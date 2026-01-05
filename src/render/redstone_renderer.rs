@@ -1,11 +1,10 @@
 use bevy::prelude::*;
 
 use crate::{
-    BlockType, TextureAtlas, Textures,
+    BlockType, SpawnCtx, TextureAtlas,
     block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
-    cube::{Cube, CubeTextures, TileCoords},
-    grid_plugin::Grid,
     materials::redstone::RedstoneMaterials,
+    meshes::MeshId,
     redstone::{
         JunctionUVs, get_mesh, spawn_corner_ne, spawn_corner_nw, spawn_corner_se, spawn_corner_sw,
         spawn_cross, spawn_redstone_mesh, spawn_tcross_east, spawn_tcross_north,
@@ -22,16 +21,17 @@ pub struct Position(pub IVec3);
 pub struct RedstoneLamp;
 
 pub fn render_redstone(
-    mut commands: Commands,
+    ctx: SpawnCtx,
     mut dirty_redstone: ResMut<DirtyRedstone>,
-    grid: ResMut<Grid>,
     mut block_entities: ResMut<BlockEntities>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    texture_map: ResMut<Textures>,
     redstone_materials: Res<RedstoneMaterials>,
 ) {
-    let texture = texture_map.handles.get(&TextureAtlas::Blocks).unwrap();
+    let texture = ctx.atlas.handles.get(&TextureAtlas::Blocks).unwrap();
+    let mut commands = ctx.commands;
+    let grid = ctx.grid;
+    let mut materials = ctx.materials;
+    let mesh_registry = ctx.mesh_registry;
+    let mut meshes = ctx.meshes;
 
     for position in dirty_redstone.drain() {
         let entity = block_entities.entities.get(&position);
@@ -40,29 +40,16 @@ pub fn render_redstone(
             match entity {
                 Some(entity) => match block_data.block_type {
                     BlockType::RedStoneLamp { powered } => {
-                        let textures = if powered {
-                            CubeTextures::new(
-                                Some(TileCoords::new(2, 2)),
-                                Some(TileCoords::new(2, 2)),
-                                Some(TileCoords::new(2, 2)),
-                                Some(TileCoords::new(2, 2)),
-                                Some(TileCoords::new(2, 2)),
-                                Some(TileCoords::new(2, 2)),
-                            )
+                        let mesh = if powered {
+                            mesh_registry.get(MeshId::RedStoneLampOn)
                         } else {
-                            CubeTextures::new(
-                                Some(TileCoords::new(1, 2)),
-                                Some(TileCoords::new(1, 2)),
-                                Some(TileCoords::new(1, 2)),
-                                Some(TileCoords::new(1, 2)),
-                                Some(TileCoords::new(1, 2)),
-                                Some(TileCoords::new(1, 2)),
-                            )
-                        };
-                        let mesh = Cube::new(textures);
+                            mesh_registry.get(MeshId::RedStoneLampOff)
+                        }
+                        .expect("Could not load RedStoneLamp Mesh from registry");
+
                         commands.entity(*entity).insert((
                             Name::new("RedstoneLamp"),
-                            Mesh3d(meshes.add(mesh)),
+                            Mesh3d(mesh.clone()),
                             MeshMaterial3d(materials.add(StandardMaterial {
                                 base_color_texture: Some(texture.clone()),
                                 perceptual_roughness: 1.0,
@@ -165,19 +152,14 @@ pub fn render_redstone(
                 },
                 None => match block_data.block_type {
                     BlockType::RedStoneLamp { .. } => {
-                        let textures = CubeTextures::new(
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                            Some(TileCoords::new(1, 2)),
-                        );
-                        let mesh = Cube::new(textures);
+                        let mesh = mesh_registry
+                            .get(MeshId::RedStoneLampOff)
+                            .expect("Could not load RedstoneLampOff mesh from registry");
+
                         let entity = commands
                             .spawn((
                                 Name::new("RedstoneLamp"),
-                                Mesh3d(meshes.add(mesh)),
+                                Mesh3d(mesh.clone()),
                                 MeshMaterial3d(materials.add(StandardMaterial {
                                     base_color_texture: Some(texture.clone()),
                                     perceptual_roughness: 1.0,
@@ -195,21 +177,54 @@ pub fn render_redstone(
                             .observe(track_grid_cordinate)
                             .observe(untrack_hovered_block)
                             .id();
+
+                        block_entities.entities.insert(position, entity);
+                    }
+                    BlockType::RedStoneTorch { .. } => {
+                        let mesh = mesh_registry
+                            .get(MeshId::RedstoneTorchStem)
+                            .expect("Could not load redstone torch stem");
+
+                        let entity = commands
+                            .spawn((
+                                Name::new("RedstoneTorch"),
+                                Mesh3d(mesh.clone()),
+                                MeshMaterial3d(materials.add(StandardMaterial {
+                                    base_color_texture: Some(texture.clone()),
+                                    perceptual_roughness: 1.0,
+                                    ..default()
+                                })),
+                                Transform::from_translation(position.as_vec3() - Vec3::Y * 0.25),
+                                Pickable {
+                                    is_hoverable: true,
+                                    ..default()
+                                },
+                                Position(position),
+                                RedstoneLamp,
+                            ))
+                            .observe(track_hovered_block)
+                            .observe(track_grid_cordinate)
+                            .observe(untrack_hovered_block)
+                            .id();
+
                         block_entities.entities.insert(position, entity);
                     }
                     BlockType::Dust { shape, power } => {
                         let material = redstone_materials.get(shape.into(), power.into()).unwrap();
+
                         let mesh = match shape {
                             JunctionType::Horizontal => get_mesh(JunctionUVs::Horizontal),
                             JunctionType::Vertical => get_mesh(JunctionUVs::Vertical),
                             _ => get_mesh(JunctionUVs::Dot),
                         };
+
                         let entity = spawn_redstone_mesh(
                             meshes.add(mesh),
                             &mut commands,
                             position,
                             material,
                         );
+
                         block_entities.entities.insert(position, entity);
                     }
                     _ => {}

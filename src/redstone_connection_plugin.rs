@@ -96,6 +96,9 @@ fn resolve_junction(position: IVec3, grid: &Grid) -> JunctionType {
 fn has_redstone(block_data: &BlockData) -> bool {
     matches!(
         block_data.block_type,
-        BlockType::Dust { .. } | BlockType::RedStone | BlockType::RedStoneLamp { .. }
+        BlockType::Dust { .. }
+            | BlockType::RedStone
+            | BlockType::RedStoneLamp { .. }
+            | BlockType::RedStoneTorch { .. }
     )
 }

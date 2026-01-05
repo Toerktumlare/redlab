@@ -29,11 +29,11 @@ pub fn propagate_redstone(
 
         for dir in DIRS {
             let neighbor_pos = pos + dir;
-            if let Some(neighbor) = grid.get(neighbor_pos) {
-                if neighbor.block_type.is_conductor() {
-                    new_power = new_power.max(neighbor.block_type.power().saturating_sub(1));
-                };
-            }
+            if let Some(neighbor) = grid.get(neighbor_pos)
+                && neighbor.block_type.is_conductor()
+            {
+                new_power = new_power.max(neighbor.block_type.power().saturating_sub(1));
+            };
         }
 
         if new_power != old {

@@ -96,9 +96,9 @@ pub fn grid_apply_changes(
             for pos in changed_positions {
                 if let Some(block_data) = grid.get(pos) {
                     match block_data.block_type {
-                        BlockType::RedStoneLamp { .. } | BlockType::Dust { .. } => {
-                            dirty_redstone.mark(pos)
-                        }
+                        BlockType::RedStoneLamp { .. }
+                        | BlockType::Dust { .. }
+                        | BlockType::RedStoneTorch { .. } => dirty_redstone.mark(pos),
                         _ => dirty_blocks.mark(pos),
                     }
                 } else {

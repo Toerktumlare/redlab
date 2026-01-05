@@ -6,7 +6,6 @@ const EPS: f32 = 1e-4;
 pub struct HoveredBlockInfo {
     pub position: Option<IVec3>,
     pub normal: Option<IVec3>,
-    pub entity: Option<Entity>,
 }
 
 #[derive(Component)]
@@ -41,7 +40,6 @@ pub fn untrack_hovered_block(
 
 /// Track what block we are hovering by grid cordinates
 pub fn track_grid_cordinate(event: On<Pointer<Move>>, mut hovered: ResMut<HoveredBlockInfo>) {
-    let target = event.event_target();
     let hit_data = &event.event.hit;
 
     if let Some(position) = hit_data.position
@@ -60,7 +58,6 @@ pub fn track_grid_cordinate(event: On<Pointer<Move>>, mut hovered: ResMut<Hovere
         *hovered = HoveredBlockInfo {
             position: Some(hovered_block),
             normal: Some(face),
-            entity: Some(target),
         };
     }
 }

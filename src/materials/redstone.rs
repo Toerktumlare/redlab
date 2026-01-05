@@ -4,7 +4,7 @@ use crate::TextureAtlas;
 use crate::Textures;
 use crate::redstone_connection_plugin::JunctionType;
 
-static RED_BASE: f32 = 1.2;
+static RED_BASE: f32 = 0.8;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum RedstoneTexture {
@@ -40,7 +40,7 @@ impl Default for RedstoneColors {
             let t_base = 0.2 + 0.6 * t;
             colors.push((
                 LinearRgba::new(5.0 * t_emissive, 0.0, 0.0, 1.0),
-                Color::linear_rgb(0.8 * t_base, 0.0, 0.0),
+                Color::linear_rgb(RED_BASE * t_base, 0.0, 0.0),
             ));
         }
 

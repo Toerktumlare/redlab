@@ -100,7 +100,7 @@ fn startup(
             ..default()
         },
         Projection::from(OrthographicProjection {
-            scale: 10.0,
+            scale: 20.0,
             scaling_mode: ScalingMode::FixedHorizontal {
                 viewport_width: 1.0,
             },

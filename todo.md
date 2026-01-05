@@ -11,3 +11,4 @@
 [ ] implement so that redstone go up ontop of blocks (side redstone)
 [ ] fix some Z fighting
 [ ] build some sort of render queue, that distributes rendering assignments to correct renderer
+[ ] remove mod.rs files
