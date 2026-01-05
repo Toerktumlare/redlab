@@ -20,7 +20,7 @@ impl BlockDefinition {
             BlockPart {
                 part: MeshId::RedstoneTorchStem,
                 mesh: PartMesh {
-                    size: Vec3::new(0.06, 0.35, 0.06),
+                    size: Vec3::new(0.06, 0.32, 0.06),
                     uvs: UvLayout::PerFace([
                         REDSTONE_TORCH_FRONT,
                         REDSTONE_TORCH_BACK,
@@ -34,7 +34,7 @@ impl BlockDefinition {
             BlockPart {
                 part: MeshId::RedstoneTorchGlow,
                 mesh: PartMesh {
-                    size: Vec3::new(0.08, 0.08, 0.08),
+                    size: Vec3::new(0.09, 0.09, 0.09),
                     uvs: UvLayout::Same(REDSTONE_TORCH_GLOW),
                 },
             },

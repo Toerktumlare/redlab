@@ -145,7 +145,7 @@ fn camera_zoom(
     if let Projection::Orthographic(ortho) = &mut **projection {
         let delta_zoom = -mouse_wheel_input.delta.y * zoom_speed;
         let multiplicative_zoom = 1.0 + delta_zoom;
-        ortho.scale = (ortho.scale * multiplicative_zoom).clamp(5.0, 100.0);
+        ortho.scale = (ortho.scale * multiplicative_zoom).clamp(2.0, 100.0);
     }
 }
 

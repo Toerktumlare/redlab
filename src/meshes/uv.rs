@@ -33,16 +33,16 @@ pub(crate) const STANDARD_GRASS_SIDES: FaceUvs = [
 
 pub(crate) const REDSTONE_LAMP_ON: FaceUvs = [
     Vec2::new(64.0, 64.0),
-    Vec2::new(95.0, 64.0),
-    Vec2::new(95.0, 95.0),
-    Vec2::new(64.0, 95.0),
+    Vec2::new(96.0, 64.0),
+    Vec2::new(96.0, 96.0),
+    Vec2::new(64.0, 96.0),
 ];
 
 pub(crate) const REDSTONE_LAMP_OFF: FaceUvs = [
     Vec2::new(32.0, 64.0),
-    Vec2::new(63.0, 64.0),
-    Vec2::new(63.0, 95.0),
-    Vec2::new(32.0, 95.0),
+    Vec2::new(64.0, 64.0),
+    Vec2::new(64.0, 96.0),
+    Vec2::new(32.0, 96.0),
 ];
 
 pub(crate) const REDSTONE_TORCH_TOP: FaceUvs = [
@@ -81,22 +81,22 @@ pub(crate) const REDSTONE_TORCH_SIDES: FaceUvs = [
 ];
 
 pub(crate) const REDSTONE_TORCH_GLOW: FaceUvs = [
-    Vec2::new(114.0, 124.0),
-    Vec2::new(114.0, 124.0),
-    Vec2::new(110.0, 128.0),
-    Vec2::new(110.0, 128.0),
+    Vec2::new(116.0, 114.0),
+    Vec2::new(108.0, 114.0),
+    Vec2::new(108.0, 106.0),
+    Vec2::new(116.0, 106.0),
 ];
 
 pub(crate) const REDSTONE_BLOCK: FaceUvs = [
     Vec2::new(0.0, 64.0),
-    Vec2::new(31.0, 64.0),
-    Vec2::new(31.0, 95.0),
-    Vec2::new(0.0, 95.0),
+    Vec2::new(32.0, 64.0),
+    Vec2::new(32.0, 96.0),
+    Vec2::new(0.0, 96.0),
 ];
 
 pub(crate) const STANDARD_DIRT: FaceUvs = [
     Vec2::new(32.0, 32.0),
-    Vec2::new(63.0, 32.0),
-    Vec2::new(63.0, 63.0),
-    Vec2::new(32.0, 63.0),
+    Vec2::new(64.0, 32.0),
+    Vec2::new(64.0, 64.0),
+    Vec2::new(32.0, 64.0),
 ];

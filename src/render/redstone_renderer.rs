@@ -1,9 +1,9 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::render_resource::Face};
 
 use crate::{
     BlockType, SpawnCtx, TextureAtlas,
     block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
-    materials::redstone::RedstoneMaterials,
+    materials::redstone::{RedstoneMaterials, RedstonePower, RedstoneTexture},
     meshes::MeshId,
     redstone::{
         JunctionUVs, get_mesh, spawn_corner_ne, spawn_corner_nw, spawn_corner_se, spawn_corner_sw,
@@ -26,12 +26,12 @@ pub fn render_redstone(
     mut block_entities: ResMut<BlockEntities>,
     redstone_materials: Res<RedstoneMaterials>,
 ) {
-    let texture = ctx.atlas.handles.get(&TextureAtlas::Blocks).unwrap();
     let mut commands = ctx.commands;
-    let grid = ctx.grid;
     let mut materials = ctx.materials;
-    let mesh_registry = ctx.mesh_registry;
     let mut meshes = ctx.meshes;
+    let texture = ctx.atlas.handles.get(&TextureAtlas::Blocks).unwrap();
+    let grid = ctx.grid;
+    let mesh_registry = ctx.mesh_registry;
 
     for position in dirty_redstone.drain() {
         let entity = block_entities.entities.get(&position);
@@ -181,14 +181,21 @@ pub fn render_redstone(
                         block_entities.entities.insert(position, entity);
                     }
                     BlockType::RedStoneTorch { .. } => {
-                        let mesh = mesh_registry
+                        let stem_mesh = mesh_registry
                             .get(MeshId::RedstoneTorchStem)
                             .expect("Could not load redstone torch stem");
 
+                        let glow_mesh = mesh_registry
+                            .get(MeshId::RedstoneTorchGlow)
+                            .expect("Could not load redstone torch glow");
+
+                        let material = redstone_materials
+                            .get(RedstoneTexture::Dot, RedstonePower::P15)
+                            .unwrap();
                         let entity = commands
                             .spawn((
                                 Name::new("RedstoneTorch"),
-                                Mesh3d(mesh.clone()),
+                                Mesh3d(stem_mesh.clone()),
                                 MeshMaterial3d(materials.add(StandardMaterial {
                                     base_color_texture: Some(texture.clone()),
                                     perceptual_roughness: 1.0,
@@ -200,7 +207,30 @@ pub fn render_redstone(
                                     ..default()
                                 },
                                 Position(position),
-                                RedstoneLamp,
+                                children![(
+                                    Name::new("RedstoneTorchGlow"),
+                                    Mesh3d(glow_mesh.clone()),
+                                    // MeshMaterial3d(material.clone()),
+                                    // MeshMaterial3d(materials.add(StandardMaterial {
+                                    //     base_color_texture: Some(texture.clone()),
+                                    //     perceptual_roughness: 1.0,
+                                    //     cull_mode: Some(Face::Back),
+                                    //     ..default()
+                                    // })),
+                                    MeshMaterial3d(materials.add(StandardMaterial {
+                                        emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
+                                        base_color: Color::linear_rgb(0.5, 0.0, 0.0),
+                                        perceptual_roughness: 1.0,
+                                        cull_mode: Some(Face::Front),
+                                        unlit: true,
+                                        ..default()
+                                    })),
+                                    Pickable {
+                                        is_hoverable: true,
+                                        ..default()
+                                    },
+                                    Transform::from_translation(Vec3::Y * 0.25),
+                                )],
                             ))
                             .observe(track_hovered_block)
                             .observe(track_grid_cordinate)
