@@ -2,8 +2,9 @@ use bevy::{prelude::*, render::render_resource::Face};
 
 use crate::{
     BlockType, SpawnCtx, TextureAtlas,
+    block_interaction_plugin::BlockFace,
     block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
-    materials::redstone::{RedstoneMaterials, RedstonePower, RedstoneTexture},
+    materials::redstone::RedstoneMaterials,
     meshes::MeshId,
     redstone::{
         JunctionUVs, get_mesh, spawn_corner_ne, spawn_corner_nw, spawn_corner_se, spawn_corner_sw,
@@ -180,7 +181,7 @@ pub fn render_redstone(
 
                         block_entities.entities.insert(position, entity);
                     }
-                    BlockType::RedStoneTorch { .. } => {
+                    BlockType::RedStoneTorch { on_side, .. } => {
                         let stem_mesh = mesh_registry
                             .get(MeshId::RedstoneTorchStem)
                             .expect("Could not load redstone torch stem");
@@ -189,9 +190,33 @@ pub fn render_redstone(
                             .get(MeshId::RedstoneTorchGlow)
                             .expect("Could not load redstone torch glow");
 
-                        let material = redstone_materials
-                            .get(RedstoneTexture::Dot, RedstonePower::P15)
-                            .unwrap();
+                        let transform = {
+                            let slant_pos = (25.0_f32).to_radians();
+                            let slant_neg = (-25.0_f32).to_radians();
+                            let distance = 0.37;
+                            match on_side {
+                                BlockFace::PosX => Transform::from_translation(
+                                    position.as_vec3() - Vec3::X * distance,
+                                )
+                                .with_rotation(Quat::from_rotation_z(slant_neg)),
+                                BlockFace::NegX => Transform::from_translation(
+                                    position.as_vec3() - Vec3::NEG_X * distance,
+                                )
+                                .with_rotation(Quat::from_rotation_z(slant_pos)),
+                                BlockFace::PosZ => Transform::from_translation(
+                                    position.as_vec3() - Vec3::Z * distance,
+                                )
+                                .with_rotation(Quat::from_rotation_x(slant_pos)),
+                                BlockFace::NegZ => Transform::from_translation(
+                                    position.as_vec3() - Vec3::NEG_Z * distance,
+                                )
+                                .with_rotation(Quat::from_rotation_x(slant_neg)),
+                                _ => {
+                                    Transform::from_translation(position.as_vec3() - Vec3::Y * 0.25)
+                                }
+                            }
+                        };
+
                         let entity = commands
                             .spawn((
                                 Name::new("RedstoneTorch"),
@@ -201,7 +226,7 @@ pub fn render_redstone(
                                     perceptual_roughness: 1.0,
                                     ..default()
                                 })),
-                                Transform::from_translation(position.as_vec3() - Vec3::Y * 0.25),
+                                transform,
                                 Pickable {
                                     is_hoverable: true,
                                     ..default()
@@ -210,13 +235,6 @@ pub fn render_redstone(
                                 children![(
                                     Name::new("RedstoneTorchGlow"),
                                     Mesh3d(glow_mesh.clone()),
-                                    // MeshMaterial3d(material.clone()),
-                                    // MeshMaterial3d(materials.add(StandardMaterial {
-                                    //     base_color_texture: Some(texture.clone()),
-                                    //     perceptual_roughness: 1.0,
-                                    //     cull_mode: Some(Face::Back),
-                                    //     ..default()
-                                    // })),
                                     MeshMaterial3d(materials.add(StandardMaterial {
                                         emissive: LinearRgba::new(5.0, 0.0, 0.0, 1.0),
                                         base_color: Color::linear_rgb(0.5, 0.0, 0.0),

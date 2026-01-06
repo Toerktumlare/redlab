@@ -1,8 +1,38 @@
 use bevy::prelude::*;
 
+pub mod ticks;
+
 use crate::block_selection_plugin::{
     track_grid_cordinate, track_hovered_block, untrack_hovered_block,
 };
+
+#[derive(Resource, Default, Debug)]
+pub struct TickCounter {
+    counter: u64,
+    is_running: bool,
+}
+
+impl TickCounter {
+    pub fn tick(&mut self) {
+        self.counter += 1;
+    }
+
+    pub fn read(&self) -> u64 {
+        self.counter
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.is_running
+    }
+
+    pub fn start(&mut self) {
+        self.is_running = true;
+    }
+
+    pub fn stop(&mut self) {
+        self.is_running = false;
+    }
+}
 
 pub fn spawn_cross(
     commands: &mut Commands,

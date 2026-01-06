@@ -2,6 +2,7 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 
 pub mod block_renderer;
+pub mod debug;
 pub mod redstone_renderer;
 
 #[derive(Resource, Default)]

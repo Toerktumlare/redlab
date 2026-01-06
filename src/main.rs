@@ -4,13 +4,14 @@ use bevy::{
 };
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use bevy::color::palettes::css::GHOST_WHITE;
 
 use crate::{
     block_interaction_plugin::{
-        BlockInteractionPlugin, request_delete_hovered_block, request_place_selected_block,
+        BlockFace, BlockInteractionPlugin, request_delete_hovered_block,
+        request_place_selected_block,
     },
     block_selection_plugin::BlockSelectionPlugin,
     block_texture_updater::grass_to_dirt_updater,
@@ -20,8 +21,12 @@ use crate::{
     main_camera::MainCameraPlugin,
     materials::redstone::{RedstoneColors, setup_redstone_materials},
     meshes::{MeshRegistry, setup_mesh_registry},
+    redstone::{TickCounter, ticks::tick_the_counter},
     redstone_connection_plugin::{JunctionType, update_redstone_system},
-    render::{RenderPlugin, block_renderer::render_blocks, redstone_renderer::render_redstone},
+    render::{
+        RenderPlugin, block_renderer::render_blocks, debug::render_debug_info,
+        redstone_renderer::render_redstone,
+    },
     shaders::block::BlockMaterial,
     systems::propagate_redstone::{propagate_redstone, update_redstone_lamps},
 };
@@ -39,6 +44,9 @@ mod redstone_connection_plugin;
 mod render;
 mod shaders;
 mod systems;
+
+#[derive(Component)]
+pub struct TickText;
 
 #[derive(Debug)]
 pub struct BlockData {
@@ -63,7 +71,7 @@ enum BlockType {
     Dirt,
     RedStone,
     RedStoneLamp { powered: bool },
-    RedStoneTorch { powered: bool },
+    RedStoneTorch { powered: bool, on_side: BlockFace },
     Dust { shape: JunctionType, power: u8 },
 }
 
@@ -119,6 +127,7 @@ enum GameLoop {
 
 fn main() {
     App::new()
+        .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(100)))
         .add_plugins(EntropyPlugin::<WyRand>::default())
         .add_plugins(
             DefaultPlugins
@@ -144,10 +153,12 @@ fn main() {
         .init_resource::<Textures>()
         .init_resource::<SelectedBlock>()
         .init_resource::<RedstoneColors>()
+        .init_resource::<TickCounter>()
         .add_systems(
             Startup,
             (startup, setup_redstone_materials, setup_mesh_registry).chain(),
         )
+        .add_systems(FixedUpdate, tick_the_counter)
         .add_systems(Update, (draw_on_hover_arrow, select_block))
         .add_systems(
             Update,
@@ -161,7 +172,12 @@ fn main() {
         )
         .add_systems(
             Update,
-            (render_blocks, render_redstone, update_redstone_lamps)
+            (
+                render_blocks,
+                render_redstone,
+                update_redstone_lamps,
+                render_debug_info,
+            )
                 .chain()
                 .in_set(GameLoop::Render),
         )
@@ -182,7 +198,24 @@ fn main() {
 
 fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures: ResMut<Textures>) {
     commands.spawn((
-        Text::new("(1) Dust  (2) RedBlock  (3) Lamp  (4) Lever  (0) Erase   (Space) Play/Pause  (S) Step  (R) Reset  (C) Cycle camera"),
+        Text::new("Ticks: "),
+        TextFont {
+            font: asset_server.load("fonts/retro_gaming.ttf"),
+            font_size: 17.0,
+            ..default()
+        },
+        Node {
+            position_type: PositionType::Absolute,
+            top: px(10),
+            left: px(15),
+            ..default()
+        },
+        TextColor(GHOST_WHITE.into()),
+        children![(TextSpan::default(), TickText)],
+    ));
+
+    commands.spawn((
+        Text::new("(1) Grass  (2) Redstone  (3) Lamp  (4) Dust  (5) Torch    (Space) Center Camera  (Tab) Run/Pause  (R) Reset"),
         TextFont {
             font: asset_server.load("fonts/retro_gaming.ttf"),
             font_size: 17.0,
@@ -237,7 +270,11 @@ fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos)
     }
 }
 
-fn select_block(key_input: Res<ButtonInput<KeyCode>>, mut selected_block: ResMut<SelectedBlock>) {
+fn select_block(
+    key_input: Res<ButtonInput<KeyCode>>,
+    mut selected_block: ResMut<SelectedBlock>,
+    mut tick_counter: ResMut<TickCounter>,
+) {
     if key_input.just_pressed(KeyCode::Digit1) {
         if let Some(BlockType::StandardGrass) = selected_block.0 {
             info!("Deselecting Grass");
@@ -284,7 +321,18 @@ fn select_block(key_input: Res<ButtonInput<KeyCode>>, mut selected_block: ResMut
             selected_block.0 = None;
         } else {
             info!("Selecting RedStoneTorch");
-            selected_block.0 = Some(BlockType::RedStoneTorch { powered: true });
+            selected_block.0 = Some(BlockType::RedStoneTorch {
+                powered: true,
+                on_side: BlockFace::NegZ,
+            });
+        }
+    }
+
+    if key_input.just_pressed(KeyCode::Tab) {
+        if tick_counter.is_running() {
+            tick_counter.stop();
+        } else {
+            tick_counter.start();
         }
     }
 }
