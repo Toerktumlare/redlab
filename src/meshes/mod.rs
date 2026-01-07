@@ -31,6 +31,7 @@ pub fn setup_mesh_registry(mut commands: Commands, mut meshes: ResMut<Assets<Mes
         &BlockDefinition::REDSTONE_LAMP_ON,
         &BlockDefinition::REDSTONE_LAMP_OFF,
         &BlockDefinition::REDSTONE_BLOCK,
+        &BlockDefinition::STONE_BUTTON,
     ];
 
     let registry = build_hash_registry(definitions, &mut meshes);
@@ -46,6 +47,7 @@ pub enum MeshId {
     RedStoneBlock,
     RedStoneLampOn,
     RedStoneLampOff,
+    StoneButton,
 }
 
 #[derive(Clone)]

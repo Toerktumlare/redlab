@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     BlockType, SelectedBlock,
     block_selection_plugin::HoveredBlockInfo,
-    grid_plugin::{BlockChange, PlaceRequest, RemoveRequest},
+    grid_plugin::{BlockChange, Grid, PlaceRequest, RemoveRequest, UpdateRequest},
 };
 
 pub struct BlockInteractionPlugin;
@@ -22,26 +22,56 @@ pub fn request_place_selected_block(
     selected_block: Res<SelectedBlock>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     hovered_block: Res<HoveredBlockInfo>,
+    grid: Res<Grid>,
 ) {
     if mouse_buttons.just_pressed(MouseButton::Left)
-        && let Some(mut block_type) = selected_block.0
         && let Some(position) = hovered_block.position
         && let Some(normal) = hovered_block.normal
     {
-        info!(
-            "position: {}, normal: {}, block: {:?}",
-            position, normal, block_type,
-        );
+        if let Some(mut block_type) = selected_block.0 {
+            if has_face(&block_type) {
+                set_face(&mut block_type, normal);
+            }
 
-        if has_face(&block_type) {
-            set_face(&mut block_type, normal);
+            commands.trigger(BlockChange::Place(PlaceRequest {
+                position,
+                normal,
+                block_type,
+            }));
+        } else {
+            let Some(block_data) = grid.get(position) else {
+                return;
+            };
+
+            if is_button(&block_data)
+                && is_pressed(&block_data)
+                && let BlockType::StoneButton { on_side, ticks, .. } = block_data.block_type
+            {
+                commands.trigger(BlockChange::Update(UpdateRequest {
+                    position,
+                    block_type: BlockType::StoneButton {
+                        pressed: true,
+                        power: 15,
+                        on_side,
+                        ticks: 15,
+                    },
+                }));
+            }
         }
+    }
+}
 
-        commands.trigger(BlockChange::Place(PlaceRequest {
-            position,
-            normal,
-            block_type,
-        }));
+fn is_button(block_data: &&crate::BlockData) -> bool {
+    match block_data.block_type {
+        BlockType::StoneButton { .. } => true,
+        _ => false,
+    }
+}
+
+fn is_pressed(block_data: &&crate::BlockData) -> bool {
+    match block_data.block_type {
+        BlockType::StoneButton { pressed, .. } => !pressed,
+        _ => false,
     }
 }
 

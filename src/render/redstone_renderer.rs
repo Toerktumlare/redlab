@@ -19,6 +19,9 @@ use crate::{
 pub struct Position(pub IVec3);
 
 #[derive(Component, Debug, Clone, Copy)]
+pub struct Pressed;
+
+#[derive(Component, Debug, Clone, Copy)]
 pub struct RedstoneLamp;
 
 pub fn render_redstone(
@@ -66,7 +69,6 @@ pub fn render_redstone(
                         ));
                     }
                     BlockType::Dust { shape, power } => {
-                        info!("Render redstone shape: {shape:?}, power: {power}");
                         let material = redstone_materials.get(shape.into(), power.into()).unwrap();
                         let entity = match shape {
                             JunctionType::Cross => {
@@ -141,7 +143,6 @@ pub fn render_redstone(
                                 )
                             }
                         };
-                        info!("Inserting entity: {}, {}", entity, position);
                         block_entities.entities.insert(position, entity);
                     }
                     entity => {
@@ -275,11 +276,39 @@ pub fn render_redstone(
 
                         block_entities.entities.insert(position, entity);
                     }
+                    BlockType::StoneButton { .. } => {
+                        let mesh = mesh_registry
+                            .get(MeshId::StoneButton)
+                            .expect("Could not load StoneButton mesh from registry");
+
+                        let entity = commands
+                            .spawn((
+                                Name::new("StoneButton"),
+                                Mesh3d(mesh.clone()),
+                                MeshMaterial3d(materials.add(StandardMaterial {
+                                    base_color_texture: Some(texture.clone()),
+                                    perceptual_roughness: 1.0,
+                                    ..default()
+                                })),
+                                Transform::from_translation(position.as_vec3() + Vec3::Y * -0.5),
+                                Pickable {
+                                    is_hoverable: true,
+                                    ..default()
+                                },
+                                Position(position),
+                                Pressed,
+                            ))
+                            .observe(track_hovered_block)
+                            .observe(track_grid_cordinate)
+                            .observe(untrack_hovered_block)
+                            .id();
+
+                        block_entities.entities.insert(position, entity);
+                    }
                     _ => {}
                 },
             }
         } else if let Some(entity) = entity {
-            info!("Despawning entity: {entity:?}");
             commands.entity(*entity).despawn();
             block_entities.entities.remove(&position);
         }

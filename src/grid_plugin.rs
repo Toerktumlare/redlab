@@ -98,7 +98,8 @@ pub fn grid_apply_changes(
                     match block_data.block_type {
                         BlockType::RedStoneLamp { .. }
                         | BlockType::Dust { .. }
-                        | BlockType::RedStoneTorch { .. } => dirty_redstone.mark(pos),
+                        | BlockType::RedStoneTorch { .. }
+                        | BlockType::StoneButton { .. } => dirty_redstone.mark(pos),
                         _ => dirty_blocks.mark(pos),
                     }
                 } else {
@@ -115,11 +116,6 @@ fn try_place(grid: &mut Grid, event: &PlaceRequest) -> Option<Vec<IVec3>> {
     let position = event.position + event.normal;
     let block_type = event.block_type;
 
-    if grid.blocks.contains_key(&position) {
-        return None;
-    }
-
-    info!("inserted: {}, BlockType: {:?}", position, block_type);
     grid.insert(position, BlockData { block_type });
 
     Some(neighbor_positions(position))
@@ -138,6 +134,7 @@ fn try_update(grid: &mut Grid, event: &UpdateRequest) -> Option<Vec<IVec3>> {
         None
     }
 }
+
 fn try_remove(grid: &mut Grid, position: IVec3) -> Option<Vec<IVec3>> {
     if grid.get_mut(position).is_some() {
         grid.remove(position);

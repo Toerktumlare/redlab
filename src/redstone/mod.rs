@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+pub mod button_system;
 pub mod ticks;
 
 use crate::block_selection_plugin::{
@@ -7,12 +8,12 @@ use crate::block_selection_plugin::{
 };
 
 #[derive(Resource, Default, Debug)]
-pub struct TickCounter {
+pub struct GlobalTick {
     counter: u64,
     is_running: bool,
 }
 
-impl TickCounter {
+impl GlobalTick {
     pub fn tick(&mut self) {
         self.counter += 1;
     }

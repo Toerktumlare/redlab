@@ -97,4 +97,14 @@ impl BlockDefinition {
             },
         }],
     };
+
+    pub const STONE_BUTTON: Self = Self {
+        parts: &[BlockPart {
+            part: MeshId::StoneButton,
+            mesh: PartMesh {
+                size: Vec3::new(0.08, 0.08, 0.12),
+                uvs: UvLayout::Same(REDSTONE_BLOCK),
+            },
+        }],
+    };
 }

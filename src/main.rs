@@ -21,7 +21,11 @@ use crate::{
     main_camera::MainCameraPlugin,
     materials::redstone::{RedstoneColors, setup_redstone_materials},
     meshes::{MeshRegistry, setup_mesh_registry},
-    redstone::{TickCounter, ticks::tick_the_counter},
+    redstone::{
+        GlobalTick,
+        button_system::button_tick_system,
+        ticks::{GlobalTickEvent, tick_the_counter},
+    },
     redstone_connection_plugin::{JunctionType, update_redstone_system},
     render::{
         RenderPlugin, block_renderer::render_blocks, debug::render_debug_info,
@@ -70,9 +74,23 @@ enum BlockType {
     StandardGrass,
     Dirt,
     RedStone,
-    RedStoneLamp { powered: bool },
-    RedStoneTorch { powered: bool, on_side: BlockFace },
-    Dust { shape: JunctionType, power: u8 },
+    RedStoneLamp {
+        powered: bool,
+    },
+    RedStoneTorch {
+        powered: bool,
+        on_side: BlockFace,
+    },
+    Dust {
+        shape: JunctionType,
+        power: u8,
+    },
+    StoneButton {
+        pressed: bool,
+        power: u8,
+        on_side: BlockFace,
+        ticks: u8,
+    },
 }
 
 impl BlockType {
@@ -81,6 +99,7 @@ impl BlockType {
             BlockType::Dust { power, .. } => power,
             BlockType::RedStone => 15,
             BlockType::RedStoneTorch { .. } => 15,
+            BlockType::StoneButton { power, .. } => power,
             _ => 0,
         }
     }
@@ -92,6 +111,7 @@ impl BlockType {
                 | BlockType::RedStoneLamp { .. }
                 | BlockType::RedStone
                 | BlockType::RedStoneTorch { .. }
+                | BlockType::StoneButton { .. }
         )
     }
 }
@@ -153,7 +173,8 @@ fn main() {
         .init_resource::<Textures>()
         .init_resource::<SelectedBlock>()
         .init_resource::<RedstoneColors>()
-        .init_resource::<TickCounter>()
+        .init_resource::<GlobalTick>()
+        .add_message::<GlobalTickEvent>()
         .add_systems(
             Startup,
             (startup, setup_redstone_materials, setup_mesh_registry).chain(),
@@ -168,7 +189,12 @@ fn main() {
         .add_systems(Update, grass_to_dirt_updater.in_set(GameLoop::React))
         .add_systems(
             Update,
-            (update_redstone_system, propagate_redstone).in_set(GameLoop::React),
+            (
+                update_redstone_system,
+                propagate_redstone,
+                button_tick_system,
+            )
+                .in_set(GameLoop::React),
         )
         .add_systems(
             Update,
@@ -273,7 +299,7 @@ fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos)
 fn select_block(
     key_input: Res<ButtonInput<KeyCode>>,
     mut selected_block: ResMut<SelectedBlock>,
-    mut tick_counter: ResMut<TickCounter>,
+    mut tick_counter: ResMut<GlobalTick>,
 ) {
     if key_input.just_pressed(KeyCode::Digit1) {
         if let Some(BlockType::StandardGrass) = selected_block.0 {
@@ -323,6 +349,21 @@ fn select_block(
             info!("Selecting RedStoneTorch");
             selected_block.0 = Some(BlockType::RedStoneTorch {
                 powered: true,
+                on_side: BlockFace::NegZ,
+            });
+        }
+    }
+
+    if key_input.just_pressed(KeyCode::Digit6) {
+        if let Some(BlockType::StoneButton { .. }) = selected_block.0 {
+            info!("Deselecting Stone Button");
+            selected_block.0 = None;
+        } else {
+            info!("Selecting Stone Button");
+            selected_block.0 = Some(BlockType::StoneButton {
+                power: 0,
+                ticks: 10,
+                pressed: false,
                 on_side: BlockFace::NegZ,
             });
         }

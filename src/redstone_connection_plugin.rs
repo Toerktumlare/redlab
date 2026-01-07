@@ -23,7 +23,6 @@ pub enum JunctionType {
 }
 
 fn get_junction_type(connections: &[bool]) -> JunctionType {
-    info!("{connections:?}");
     // N, S, E, W
     match connections {
         [false, false, false, false] => JunctionType::Dot,
