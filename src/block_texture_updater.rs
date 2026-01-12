@@ -1,5 +1,6 @@
 use crate::{
     BlockType,
+    blocks::Power,
     grid_plugin::{BlockChange, BlockChangeQueue, Grid, UpdateRequest},
     render::DirtyBlocks,
 };
@@ -12,13 +13,18 @@ pub fn grass_to_dirt_updater(
 ) {
     for position in &dirty_blocks.positions {
         if let Some(current_block_data) = grid.get(*position)
-            && current_block_data.block_type == BlockType::StandardGrass
+            && matches!(
+                current_block_data.block_type,
+                BlockType::StandardGrass { .. }
+            )
             && let Some(above_block_data) = grid.get(position + IVec3::Y)
-            && above_block_data.block_type == BlockType::StandardGrass
+            && matches!(above_block_data.block_type, BlockType::StandardGrass { .. })
         {
             queue.push(BlockChange::Update(UpdateRequest {
                 position: *position,
-                block_type: BlockType::Dirt,
+                block_type: BlockType::Dirt {
+                    power: Power::default(),
+                },
             }));
         }
     }

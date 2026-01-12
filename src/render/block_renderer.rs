@@ -42,7 +42,7 @@ pub fn render_blocks(
                             },
                         ));
                     }
-                    BlockType::StandardGrass => {
+                    BlockType::StandardGrass { .. } => {
                         let mesh = mesh_registry
                             .get(MeshId::StandardGrass)
                             .expect("Could not load Standard Grass Mesh from registry");
@@ -60,7 +60,7 @@ pub fn render_blocks(
                             },
                         ));
                     }
-                    BlockType::Dirt => {
+                    BlockType::Dirt { .. } => {
                         let mesh = mesh_registry
                             .get(MeshId::StandardDirt)
                             .expect("Could not load Standard Dirt Mesh from registry");
@@ -85,7 +85,7 @@ pub fn render_blocks(
                     }
                 },
                 None => match block_data.block_type {
-                    BlockType::StandardGrass => {
+                    BlockType::StandardGrass { .. } => {
                         let mesh = mesh_registry
                             .get(MeshId::StandardGrass)
                             .expect("Could not load Standard Grass Mesh from registry");

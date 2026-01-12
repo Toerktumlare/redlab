@@ -2,7 +2,6 @@ use bevy::{prelude::*, render::render_resource::Face};
 
 use crate::{
     BlockType, SpawnCtx, TextureAtlas,
-    block_interaction_plugin::BlockFace,
     block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     materials::redstone::RedstoneMaterials,
     meshes::MeshId,
@@ -69,7 +68,9 @@ pub fn render_redstone(
                         ));
                     }
                     BlockType::Dust { shape, power } => {
-                        let material = redstone_materials.get(shape.into(), power.into()).unwrap();
+                        let material = redstone_materials
+                            .get(shape.into(), power.weak.into())
+                            .unwrap();
                         let entity = match shape {
                             JunctionType::Cross => {
                                 commands.entity(*entity).despawn();
@@ -104,22 +105,25 @@ pub fn render_redstone(
                             JunctionType::CornerNE => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                let material =
-                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+                                let material = redstone_materials
+                                    .get(shape.into(), power.weak.into())
+                                    .unwrap();
                                 spawn_corner_ne(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::CornerSW => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                let material =
-                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+                                let material = redstone_materials
+                                    .get(shape.into(), power.weak.into())
+                                    .unwrap();
                                 spawn_corner_sw(&mut commands, &mut meshes, position, material)
                             }
                             JunctionType::CornerSE => {
                                 commands.entity(*entity).despawn();
                                 block_entities.entities.remove(&position);
-                                let material =
-                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+                                let material = redstone_materials
+                                    .get(shape.into(), power.weak.into())
+                                    .unwrap();
                                 spawn_corner_se(&mut commands, &mut meshes, position, material)
                             }
                             _ => {
@@ -130,8 +134,9 @@ pub fn render_redstone(
                                 };
                                 commands.entity(*entity).despawn_children();
 
-                                let material =
-                                    redstone_materials.get(shape.into(), power.into()).unwrap();
+                                let material = redstone_materials
+                                    .get(shape.into(), power.weak.into())
+                                    .unwrap();
 
                                 update_redstone_mesh(
                                     entity,
@@ -143,6 +148,41 @@ pub fn render_redstone(
                                 )
                             }
                         };
+                        block_entities.entities.insert(position, entity);
+                    }
+                    BlockType::StoneButton { ticks, .. } => {
+                        let mesh = mesh_registry
+                            .get(MeshId::StoneButton)
+                            .expect("Could not load StoneButton mesh from registry");
+                        let transform = if ticks > 13 {
+                            Transform::from_translation(position.as_vec3() + Vec3::Y * -0.55)
+                        } else {
+                            Transform::from_translation(position.as_vec3() + Vec3::Y * -0.5)
+                        };
+
+                        let entity = commands
+                            .entity(*entity)
+                            .insert((
+                                Name::new("StoneButton"),
+                                Mesh3d(mesh.clone()),
+                                MeshMaterial3d(materials.add(StandardMaterial {
+                                    base_color_texture: Some(texture.clone()),
+                                    perceptual_roughness: 1.0,
+                                    ..default()
+                                })),
+                                transform,
+                                Pickable {
+                                    is_hoverable: true,
+                                    ..default()
+                                },
+                                Position(position),
+                                Pressed,
+                            ))
+                            .observe(track_hovered_block)
+                            .observe(track_grid_cordinate)
+                            .observe(untrack_hovered_block)
+                            .id();
+
                         block_entities.entities.insert(position, entity);
                     }
                     entity => {
@@ -182,7 +222,7 @@ pub fn render_redstone(
 
                         block_entities.entities.insert(position, entity);
                     }
-                    BlockType::RedStoneTorch { on_side, .. } => {
+                    BlockType::RedStoneTorch { attached_face, .. } => {
                         let stem_mesh = mesh_registry
                             .get(MeshId::RedstoneTorchStem)
                             .expect("Could not load redstone torch stem");
@@ -195,20 +235,20 @@ pub fn render_redstone(
                             let slant_pos = (25.0_f32).to_radians();
                             let slant_neg = (-25.0_f32).to_radians();
                             let distance = 0.37;
-                            match on_side {
-                                BlockFace::PosX => Transform::from_translation(
+                            match attached_face {
+                                IVec3::NEG_X => Transform::from_translation(
                                     position.as_vec3() - Vec3::X * distance,
                                 )
                                 .with_rotation(Quat::from_rotation_z(slant_neg)),
-                                BlockFace::NegX => Transform::from_translation(
+                                IVec3::X => Transform::from_translation(
                                     position.as_vec3() - Vec3::NEG_X * distance,
                                 )
                                 .with_rotation(Quat::from_rotation_z(slant_pos)),
-                                BlockFace::PosZ => Transform::from_translation(
+                                IVec3::NEG_Z => Transform::from_translation(
                                     position.as_vec3() - Vec3::Z * distance,
                                 )
                                 .with_rotation(Quat::from_rotation_x(slant_pos)),
-                                BlockFace::NegZ => Transform::from_translation(
+                                IVec3::Z => Transform::from_translation(
                                     position.as_vec3() - Vec3::NEG_Z * distance,
                                 )
                                 .with_rotation(Quat::from_rotation_x(slant_neg)),
@@ -259,7 +299,9 @@ pub fn render_redstone(
                         block_entities.entities.insert(position, entity);
                     }
                     BlockType::Dust { shape, power } => {
-                        let material = redstone_materials.get(shape.into(), power.into()).unwrap();
+                        let material = redstone_materials
+                            .get(shape.into(), power.weak.into())
+                            .unwrap();
 
                         let mesh = match shape {
                             JunctionType::Horizontal => get_mesh(JunctionUVs::Horizontal),

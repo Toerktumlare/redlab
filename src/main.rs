@@ -10,11 +10,11 @@ use bevy::color::palettes::css::GHOST_WHITE;
 
 use crate::{
     block_interaction_plugin::{
-        BlockFace, BlockInteractionPlugin, request_delete_hovered_block,
-        request_place_selected_block,
+        BlockInteractionPlugin, request_delete_hovered_block, request_place_selected_block,
     },
     block_selection_plugin::BlockSelectionPlugin,
     block_texture_updater::grass_to_dirt_updater,
+    blocks::{BlockType, Power},
     grid_plugin::{
         BlockChange, Grid, GridPlugin, PlaceRequest, grid_apply_changes, queue_block_change,
     },
@@ -32,12 +32,16 @@ use crate::{
         redstone_renderer::render_redstone,
     },
     shaders::block::BlockMaterial,
-    systems::propagate_redstone::{propagate_redstone, update_redstone_lamps},
+    systems::propagate_redstone::{
+        propagate_block_power, propagate_dust_power, propagate_strong_power, propagate_torch_power,
+        update_redstone_lamps,
+    },
 };
 
 mod block_interaction_plugin;
 mod block_selection_plugin;
 mod block_texture_updater;
+mod blocks;
 mod grid_plugin;
 mod main_camera;
 mod materials;
@@ -67,54 +71,6 @@ impl Default for BlockData {
 
 #[derive(Resource, Default)]
 struct SelectedBlock(Option<BlockType>);
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-enum BlockType {
-    Air,
-    StandardGrass,
-    Dirt,
-    RedStone,
-    RedStoneLamp {
-        powered: bool,
-    },
-    RedStoneTorch {
-        powered: bool,
-        on_side: BlockFace,
-    },
-    Dust {
-        shape: JunctionType,
-        power: u8,
-    },
-    StoneButton {
-        pressed: bool,
-        power: u8,
-        on_side: BlockFace,
-        ticks: u8,
-    },
-}
-
-impl BlockType {
-    pub fn power(&self) -> u8 {
-        match *self {
-            BlockType::Dust { power, .. } => power,
-            BlockType::RedStone => 15,
-            BlockType::RedStoneTorch { .. } => 15,
-            BlockType::StoneButton { power, .. } => power,
-            _ => 0,
-        }
-    }
-
-    pub fn is_conductor(&self) -> bool {
-        matches!(
-            &self,
-            BlockType::Dust { .. }
-                | BlockType::RedStoneLamp { .. }
-                | BlockType::RedStone
-                | BlockType::RedStoneTorch { .. }
-                | BlockType::StoneButton { .. }
-        )
-    }
-}
 
 #[derive(Resource, Default)]
 pub struct Textures {
@@ -191,7 +147,10 @@ fn main() {
             Update,
             (
                 update_redstone_system,
-                propagate_redstone,
+                propagate_strong_power,
+                propagate_torch_power,
+                propagate_block_power,
+                propagate_dust_power,
                 button_tick_system,
             )
                 .in_set(GameLoop::React),
@@ -268,7 +227,9 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
             let pos_z = z - half_grid;
             let position = IVec3::new(pos_x, 0, pos_z);
             commands.trigger(BlockChange::Place(PlaceRequest {
-                block_type: BlockType::StandardGrass,
+                block_type: BlockType::StandardGrass {
+                    power: Power::default(),
+                },
                 normal: IVec3::ZERO,
                 position,
             }));
@@ -302,12 +263,14 @@ fn select_block(
     mut tick_counter: ResMut<GlobalTick>,
 ) {
     if key_input.just_pressed(KeyCode::Digit1) {
-        if let Some(BlockType::StandardGrass) = selected_block.0 {
+        if let Some(BlockType::StandardGrass { .. }) = selected_block.0 {
             info!("Deselecting Grass");
             selected_block.0 = None;
         } else {
             info!("Selecting Grass");
-            selected_block.0 = Some(BlockType::StandardGrass);
+            selected_block.0 = Some(BlockType::StandardGrass {
+                power: Power::default(),
+            });
         }
     }
     if key_input.just_pressed(KeyCode::Digit2) {
@@ -336,7 +299,7 @@ fn select_block(
             info!("Selecting Dust");
             selected_block.0 = Some(BlockType::Dust {
                 shape: JunctionType::Dot,
-                power: 0,
+                power: Power::default(),
             });
         }
     }
@@ -348,8 +311,8 @@ fn select_block(
         } else {
             info!("Selecting RedStoneTorch");
             selected_block.0 = Some(BlockType::RedStoneTorch {
-                powered: true,
-                on_side: BlockFace::NegZ,
+                on: true,
+                attached_face: IVec3::NEG_X,
             });
         }
     }
@@ -361,10 +324,9 @@ fn select_block(
         } else {
             info!("Selecting Stone Button");
             selected_block.0 = Some(BlockType::StoneButton {
-                power: 0,
                 ticks: 10,
                 pressed: false,
-                on_side: BlockFace::NegZ,
+                attached_face: IVec3::NEG_X,
             });
         }
     }

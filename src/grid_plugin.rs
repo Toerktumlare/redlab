@@ -36,6 +36,10 @@ impl Grid {
         self.blocks.get(&pos)
     }
 
+    pub fn get_blocktype(&self, pos: IVec3) -> Option<&BlockType> {
+        self.blocks.get(&pos).map(|b| &b.block_type)
+    }
+
     pub fn get_mut(&mut self, pos: IVec3) -> Option<&mut BlockData> {
         self.blocks.get_mut(&pos)
     }
@@ -46,6 +50,10 @@ impl Grid {
 
     pub fn remove(&mut self, pos: IVec3) {
         self.blocks.remove(&pos);
+    }
+
+    pub fn is_solid(&mut self, pos: IVec3) -> bool {
+        todo!()
     }
 }
 
@@ -79,6 +87,15 @@ pub fn queue_block_change(event: On<BlockChange>, mut queue: ResMut<BlockChangeQ
     queue.push(event.event().clone());
 }
 
+const ALL_DIRS: [IVec3; 6] = [
+    IVec3::X,
+    IVec3::NEG_X,
+    IVec3::Z,
+    IVec3::NEG_Z,
+    IVec3::Y,
+    IVec3::NEG_Y,
+];
+
 pub fn grid_apply_changes(
     mut queue: ResMut<BlockChangeQueue>,
     mut grid: ResMut<Grid>,
@@ -101,6 +118,19 @@ pub fn grid_apply_changes(
                         | BlockType::RedStoneTorch { .. }
                         | BlockType::StoneButton { .. } => dirty_redstone.mark(pos),
                         _ => dirty_blocks.mark(pos),
+                    }
+
+                    // find neghbours dust and trigger them for update
+                    for dir in ALL_DIRS {
+                        let position = pos + dir;
+                        let Some(block_data) = grid.get(position) else {
+                            continue;
+                        };
+
+                        let block_type = block_data.block_type;
+                        if matches!(block_type, BlockType::Dust { .. }) {
+                            dirty_redstone.mark(position);
+                        }
                     }
                 } else {
                     // Ugly solution, main renderer will delete any block_type

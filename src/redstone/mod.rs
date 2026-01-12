@@ -226,7 +226,6 @@ pub fn spawn_corner_nw(
     let half_line2 = get_mesh(JunctionUVs::HLineS);
     let dot = get_mesh(JunctionUVs::Dot);
     let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
-    info!("Spawning, North West");
 
     commands
         .spawn((
@@ -270,7 +269,6 @@ pub fn spawn_corner_ne(
     let half_line2 = get_mesh(JunctionUVs::HLineS);
     let dot = get_mesh(JunctionUVs::Dot);
     let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
-    info!("Spawning, North East");
 
     commands
         .spawn((
@@ -314,7 +312,6 @@ pub fn spawn_corner_se(
     let half_line2 = get_mesh(JunctionUVs::HLineN);
     let dot = get_mesh(JunctionUVs::Dot);
     let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
-    info!("Spawning, South East");
 
     commands
         .spawn((
@@ -358,7 +355,6 @@ pub fn spawn_corner_sw(
     let half_line2 = get_mesh(JunctionUVs::HLineS);
     let dot = get_mesh(JunctionUVs::Dot);
     let pos = position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01);
-    info!("Spawning, South West");
 
     commands
         .spawn((
@@ -397,7 +393,7 @@ pub fn spawn_redstone_mesh(
     position: IVec3,
     material: Handle<StandardMaterial>,
 ) -> Entity {
-    let entity = commands
+    commands
         .spawn((
             Name::new("Redstone"),
             Mesh3d(mesh),
@@ -412,9 +408,7 @@ pub fn spawn_redstone_mesh(
         .observe(track_hovered_block)
         .observe(track_grid_cordinate)
         .observe(untrack_hovered_block)
-        .id();
-    info!("Spawned: {}", entity);
-    entity
+        .id()
 }
 
 pub fn update_redstone_mesh(

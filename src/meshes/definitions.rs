@@ -6,7 +6,7 @@ use crate::meshes::{
         REDSTONE_BLOCK, REDSTONE_LAMP_OFF, REDSTONE_LAMP_ON, REDSTONE_TORCH_BACK,
         REDSTONE_TORCH_BOTTOM, REDSTONE_TORCH_FRONT, REDSTONE_TORCH_GLOW, REDSTONE_TORCH_SIDES,
         REDSTONE_TORCH_TOP, STANDARD_DIRT, STANDARD_GRASS_BOTTOM, STANDARD_GRASS_SIDES,
-        STANDARD_GRASS_TOP, UvLayout,
+        STANDARD_GRASS_TOP, STONE_BLOCK, UvLayout,
     },
 };
 
@@ -102,8 +102,8 @@ impl BlockDefinition {
         parts: &[BlockPart {
             part: MeshId::StoneButton,
             mesh: PartMesh {
-                size: Vec3::new(0.08, 0.08, 0.12),
-                uvs: UvLayout::Same(REDSTONE_BLOCK),
+                size: Vec3::new(0.1, 0.1, 0.14),
+                uvs: UvLayout::Same(STONE_BLOCK),
             },
         }],
     };

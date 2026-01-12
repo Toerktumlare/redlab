@@ -100,3 +100,10 @@ pub(crate) const STANDARD_DIRT: FaceUvs = [
     Vec2::new(64.0, 64.0),
     Vec2::new(32.0, 64.0),
 ];
+
+pub(crate) const STONE_BLOCK: FaceUvs = [
+    Vec2::new(200.0, 32.0),
+    Vec2::new(200.0, 40.0),
+    Vec2::new(192.0, 40.0),
+    Vec2::new(192.0, 32.0),
+];

@@ -4,10 +4,7 @@ use crate::{
     BlockType,
     grid_plugin::{BlockChange, BlockChangeQueue, Grid, UpdateRequest},
     redstone::ticks::GlobalTickEvent,
-    render::{
-        DirtyRedstone,
-        redstone_renderer::{Position, Pressed},
-    },
+    render::redstone_renderer::{Position, Pressed},
 };
 
 pub fn button_tick_system(
@@ -24,8 +21,7 @@ pub fn button_tick_system(
 
             let BlockType::StoneButton {
                 pressed,
-                power,
-                on_side,
+                attached_face,
                 ticks,
             } = block_data.block_type
             else {
@@ -39,20 +35,17 @@ pub fn button_tick_system(
             let new_ticks = ticks.saturating_sub(1);
             info!("Button tick, old: {ticks}, new: {new_ticks}");
 
-            let mut new_power = power;
             let mut new_pressed = pressed;
 
             if new_ticks == 0 {
                 new_pressed = false;
-                new_power = 0;
             }
 
             queue.push(BlockChange::Update(UpdateRequest {
                 position: pos.0,
                 block_type: BlockType::StoneButton {
                     pressed: new_pressed,
-                    power: new_power,
-                    on_side,
+                    attached_face,
                     ticks: new_ticks,
                 },
             }))
