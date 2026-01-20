@@ -2,7 +2,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 
 use crate::TextureAtlas;
 use crate::Textures;
-use crate::redstone_connection_plugin::JunctionType;
+use crate::redstone::junctions::JunctionType;
 
 static RED_BASE: f32 = 0.8;
 

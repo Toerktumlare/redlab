@@ -1,13 +1,16 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::{BlockData, BlockType, render::DirtyBlocks, render::DirtyRedstone};
+use crate::{
+    BlockData, BlockType,
+    redstone::{GlobalTick, NotifyDelay, Scheduler},
+    render::{DirtyBlocks, DirtyRender},
+};
 
 #[derive(Event, Clone, Debug)]
 pub enum BlockChange {
-    Place(PlaceRequest),
-    Update(UpdateRequest),
-    Remove(RemoveRequest),
+    Place(Place),
+    Remove(Remove),
 }
 
 #[derive(Resource, Default)]
@@ -51,28 +54,57 @@ impl Grid {
     pub fn remove(&mut self, pos: IVec3) {
         self.blocks.remove(&pos);
     }
+}
 
-    pub fn is_solid(&mut self, pos: IVec3) -> bool {
-        todo!()
+#[derive(Event, Clone, Debug)]
+pub struct Place {
+    position: IVec3,
+    block_type: BlockType,
+    visual_change: bool,
+    self_tick: Option<NotifyDelay>,
+    neighbor_tick: Option<NotifyDelay>,
+}
+
+impl Place {
+    pub(crate) fn new(
+        block_type: BlockType,
+        position: IVec3,
+        visual_change: bool,
+        self_tick: Option<NotifyDelay>,
+        neighbor_tick: Option<NotifyDelay>,
+    ) -> Self {
+        Self {
+            position,
+            block_type,
+            visual_change,
+            self_tick,
+            neighbor_tick,
+        }
     }
 }
 
 #[derive(Event, Clone, Debug)]
-pub struct PlaceRequest {
-    pub position: IVec3,
-    pub normal: IVec3,
-    pub block_type: BlockType,
+pub struct Remove {
+    position: IVec3,
+    visual_change: bool,
+    self_tick: Option<NotifyDelay>,
+    neighbor_tick: Option<NotifyDelay>,
 }
 
-#[derive(Event, Default, Clone, Debug)]
-pub struct RemoveRequest {
-    pub position: IVec3,
-}
-
-#[derive(Event, Clone, Debug)]
-pub struct UpdateRequest {
-    pub position: IVec3,
-    pub block_type: BlockType,
+impl Remove {
+    pub(crate) fn new(
+        position: IVec3,
+        visual_change: bool,
+        self_tick: Option<NotifyDelay>,
+        neighbor_tick: Option<NotifyDelay>,
+    ) -> Self {
+        Self {
+            position,
+            visual_change,
+            self_tick,
+            neighbor_tick,
+        }
+    }
 }
 
 impl Plugin for GridPlugin {
@@ -88,105 +120,78 @@ pub fn queue_block_change(event: On<BlockChange>, mut queue: ResMut<BlockChangeQ
 }
 
 const ALL_DIRS: [IVec3; 6] = [
-    IVec3::X,
-    IVec3::NEG_X,
-    IVec3::Z,
-    IVec3::NEG_Z,
-    IVec3::Y,
     IVec3::NEG_Y,
+    IVec3::Y,
+    IVec3::NEG_Z,
+    IVec3::Z,
+    IVec3::NEG_X,
+    IVec3::X,
 ];
 
 pub fn grid_apply_changes(
     mut queue: ResMut<BlockChangeQueue>,
     mut grid: ResMut<Grid>,
     mut dirty_blocks: ResMut<DirtyBlocks>,
-    mut dirty_redstone: ResMut<DirtyRedstone>,
+    mut dirty_render: ResMut<DirtyRender>,
+    mut scheduler: ResMut<Scheduler>,
+    global_tick: Res<GlobalTick>,
 ) {
     for change in queue.drain() {
-        let changed_positions = match change {
-            BlockChange::Place(event) => try_place(&mut grid, &event),
-            BlockChange::Update(event) => try_update(&mut grid, &event),
-            BlockChange::Remove(event) => try_remove(&mut grid, event.position),
+        let (inserted_position, visual_change, self_tick, neighbor_tick) = match change {
+            BlockChange::Place(event) => (
+                try_place(&mut grid, &event),
+                event.visual_change,
+                event.self_tick,
+                event.neighbor_tick,
+            ),
+            BlockChange::Remove(event) => (
+                try_remove(&mut grid, event.position),
+                event.visual_change,
+                event.self_tick,
+                event.neighbor_tick,
+            ),
         };
 
-        if let Some(changed_positions) = changed_positions {
-            for pos in changed_positions {
-                if let Some(block_data) = grid.get(pos) {
-                    match block_data.block_type {
-                        BlockType::RedStoneLamp { .. }
-                        | BlockType::Dust { .. }
-                        | BlockType::RedStoneTorch { .. }
-                        | BlockType::StoneButton { .. } => dirty_redstone.mark(pos),
-                        _ => dirty_blocks.mark(pos),
+        if let Some(inserted_position) = inserted_position {
+            let now = global_tick.read();
+
+            if let Some(self_tick) = self_tick {
+                info!("Scheduling self: {}", inserted_position);
+                scheduler.schedule(inserted_position, &self_tick, now);
+            }
+
+            for dir in ALL_DIRS {
+                let position = inserted_position + dir;
+                if grid.get(position).is_some() {
+                    if let Some(neighbor_tick) = &neighbor_tick {
+                        info!("Scheduling neighbour: {}", position);
+                        scheduler.schedule(inserted_position, neighbor_tick, now);
                     }
 
-                    // find neghbours dust and trigger them for update
-                    for dir in ALL_DIRS {
-                        let position = pos + dir;
-                        let Some(block_data) = grid.get(position) else {
-                            continue;
-                        };
+                    dirty_blocks.mark(position);
+                }
+            }
 
-                        let block_type = block_data.block_type;
-                        if matches!(block_type, BlockType::Dust { .. }) {
-                            dirty_redstone.mark(position);
-                        }
-                    }
-                } else {
-                    // Ugly solution, main renderer will delete any block_type
-                    // Should be its own system
-                    dirty_blocks.mark(pos);
-                };
+            if visual_change {
+                info!("marked: {} to render", inserted_position);
+                dirty_render.mark(inserted_position);
             }
         }
     }
 }
 
-fn try_place(grid: &mut Grid, event: &PlaceRequest) -> Option<Vec<IVec3>> {
-    let position = event.position + event.normal;
+fn try_place(grid: &mut Grid, event: &Place) -> Option<IVec3> {
+    let position = event.position;
     let block_type = event.block_type;
 
     grid.insert(position, BlockData { block_type });
-
-    Some(neighbor_positions(position))
+    Some(position)
 }
 
-fn try_update(grid: &mut Grid, event: &UpdateRequest) -> Option<Vec<IVec3>> {
-    let position = event.position;
-    let new_block_type = event.block_type;
-
-    let block_data = grid.get_mut(position)?;
-
-    if block_data.block_type != new_block_type {
-        block_data.block_type = new_block_type;
-        Some(neighbor_positions(position))
-    } else {
-        None
-    }
-}
-
-fn try_remove(grid: &mut Grid, position: IVec3) -> Option<Vec<IVec3>> {
+fn try_remove(grid: &mut Grid, position: IVec3) -> Option<IVec3> {
     if grid.get_mut(position).is_some() {
         grid.remove(position);
-        return Some(neighbor_positions(position));
+        return Some(position);
     }
     None
-}
-
-fn neighbor_positions(position: IVec3) -> Vec<IVec3> {
-    const DIRS: [IVec3; 6] = [
-        IVec3::new(1, 0, 0),
-        IVec3::new(-1, 0, 0),
-        IVec3::new(0, 1, 0),
-        IVec3::new(0, -1, 0),
-        IVec3::new(0, 0, 1),
-        IVec3::new(0, 0, -1),
-    ];
-
-    let mut out = Vec::with_capacity(7);
-    out.push(position);
-    for d in DIRS {
-        out.push(position + d);
-    }
-    out
 }

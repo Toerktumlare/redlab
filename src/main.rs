@@ -13,34 +13,27 @@ use crate::{
         BlockInteractionPlugin, request_delete_hovered_block, request_place_selected_block,
     },
     block_selection_plugin::BlockSelectionPlugin,
-    block_texture_updater::grass_to_dirt_updater,
-    blocks::{BlockType, Power},
-    grid_plugin::{
-        BlockChange, Grid, GridPlugin, PlaceRequest, grid_apply_changes, queue_block_change,
-    },
+    blocks::{BlockType, Dust, RedStone, RedStoneLamp, StandardGrass},
+    grid_plugin::{BlockChange, Grid, GridPlugin, Place, grid_apply_changes, queue_block_change},
     main_camera::MainCameraPlugin,
-    materials::redstone::{RedstoneColors, setup_redstone_materials},
+    materials::redstone::{RedstoneColors, RedstoneMaterials, setup_redstone_materials},
     meshes::{MeshRegistry, setup_mesh_registry},
     redstone::{
-        GlobalTick,
-        button_system::button_tick_system,
+        GlobalTick, NotifyDelay, Scheduler, apply_schedule,
         ticks::{GlobalTickEvent, tick_the_counter},
     },
-    redstone_connection_plugin::{JunctionType, update_redstone_system},
     render::{
-        RenderPlugin, block_renderer::render_blocks, debug::render_debug_info,
-        redstone_renderer::render_redstone,
+        BlockEntities, DirtyRender, RenderPlugin, basic_blocks, cleanup, debug_info, hovered_block,
+        renderer, scheduler_info,
     },
     shaders::block::BlockMaterial,
-    systems::propagate_redstone::{
-        propagate_block_power, propagate_dust_power, propagate_strong_power, propagate_torch_power,
-        update_redstone_lamps,
-    },
+    systems::recalculate_dirty_blocks,
+    ui::debug_view_system,
 };
 
 mod block_interaction_plugin;
 mod block_selection_plugin;
-mod block_texture_updater;
+// mod block_texture_updater;
 mod blocks;
 mod grid_plugin;
 mod main_camera;
@@ -48,13 +41,10 @@ mod materials;
 mod meshes;
 mod pixel_picking_plugin;
 mod redstone;
-mod redstone_connection_plugin;
 mod render;
 mod shaders;
 mod systems;
-
-#[derive(Component)]
-pub struct TickText;
+mod ui;
 
 #[derive(Debug)]
 pub struct BlockData {
@@ -90,6 +80,18 @@ pub struct SpawnCtx<'w, 's> {
     pub atlas: Res<'w, Textures>,
     pub grid: Res<'w, Grid>,
     pub mesh_registry: Res<'w, MeshRegistry>,
+}
+
+#[derive(SystemParam)]
+pub struct RenderCtx<'w, 's> {
+    pub commands: Commands<'w, 's>,
+    pub meshes: ResMut<'w, Assets<Mesh>>,
+    pub materials: ResMut<'w, Assets<StandardMaterial>>,
+    pub redstone_materials: ResMut<'w, RedstoneMaterials>,
+    pub atlas: Res<'w, Textures>,
+    pub grid: Res<'w, Grid>,
+    pub mesh_registry: Res<'w, MeshRegistry>,
+    pub block_entities: ResMut<'w, BlockEntities>,
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -128,40 +130,58 @@ fn main() {
         ))
         .init_resource::<Textures>()
         .init_resource::<SelectedBlock>()
-        .init_resource::<RedstoneColors>()
         .init_resource::<GlobalTick>()
+        .init_resource::<DirtyRender>()
+        .init_resource::<RedstoneColors>()
+        .init_resource::<Scheduler>()
         .add_message::<GlobalTickEvent>()
         .add_systems(
             Startup,
-            (startup, setup_redstone_materials, setup_mesh_registry).chain(),
+            (
+                startup,
+                setup_mesh_registry,
+                setup_redstone_materials,
+                debug_view_system,
+            )
+                .chain(),
         )
-        .add_systems(FixedUpdate, tick_the_counter)
-        .add_systems(Update, (draw_on_hover_arrow, select_block))
+        .add_systems(FixedUpdate, (tick_the_counter, apply_schedule).chain())
+        .add_systems(
+            Update,
+            (draw_on_hover_arrow, select_block).in_set(GameLoop::Input),
+        )
         .add_systems(
             Update,
             (request_place_selected_block, request_delete_hovered_block).in_set(GameLoop::Input),
         )
         .add_systems(Update, grid_apply_changes.in_set(GameLoop::Apply))
-        .add_systems(Update, grass_to_dirt_updater.in_set(GameLoop::React))
         .add_systems(
             Update,
             (
-                update_redstone_system,
-                propagate_strong_power,
-                propagate_torch_power,
-                propagate_block_power,
-                propagate_dust_power,
-                button_tick_system,
+                recalculate_dirty_blocks
+                // update_grass_to_dirt,
+                // update_redstone_junction_type,
+                // propagate_strong_power,
+                // propagate_torch_power,
+                // propagate_block_power,
+                // propagate_dust_power,
+                // button_tick_system,
+                // update_redstone_lamps,
             )
                 .in_set(GameLoop::React),
         )
         .add_systems(
             Update,
             (
-                render_blocks,
-                render_redstone,
-                update_redstone_lamps,
-                render_debug_info,
+                renderer,
+                // basic_blocks,
+                // redstone_block,
+                // redstone_lamp,
+                // dust,
+                debug_info,
+                hovered_block,
+                scheduler_info,
+                cleanup,
             )
                 .chain()
                 .in_set(GameLoop::Render),
@@ -182,27 +202,12 @@ fn main() {
 }
 
 fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures: ResMut<Textures>) {
-    commands.spawn((
-        Text::new("Ticks: "),
-        TextFont {
-            font: asset_server.load("fonts/retro_gaming.ttf"),
-            font_size: 17.0,
-            ..default()
-        },
-        Node {
-            position_type: PositionType::Absolute,
-            top: px(10),
-            left: px(15),
-            ..default()
-        },
-        TextColor(GHOST_WHITE.into()),
-        children![(TextSpan::default(), TickText)],
-    ));
+    let fonts = asset_server.load("fonts/retro_gaming.ttf");
 
     commands.spawn((
         Text::new("(1) Grass  (2) Redstone  (3) Lamp  (4) Dust  (5) Torch    (Space) Center Camera  (Tab) Run/Pause  (R) Reset"),
         TextFont {
-            font: asset_server.load("fonts/retro_gaming.ttf"),
+            font: fonts.clone(),
             font_size: 17.0,
             ..default()
         },
@@ -215,7 +220,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
         TextColor(GHOST_WHITE.into())
     ));
 
-    let grid_size = 4;
+    let grid_size = 1;
     let half_grid = grid_size / 2;
 
     let blocks: Handle<Image> = asset_server.load("cube-sheet.png");
@@ -226,13 +231,15 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
             let pos_x = x - half_grid;
             let pos_z = z - half_grid;
             let position = IVec3::new(pos_x, 0, pos_z);
-            commands.trigger(BlockChange::Place(PlaceRequest {
-                block_type: BlockType::StandardGrass {
-                    power: Power::default(),
-                },
-                normal: IVec3::ZERO,
+
+            // TODO: recalculate block here before insertion
+            commands.trigger(BlockChange::Place(Place::new(
+                BlockType::StandardGrass(StandardGrass::default()),
                 position,
-            }));
+                true,
+                Some(NotifyDelay::In(20)),
+                Some(NotifyDelay::In(30)),
+            )));
         }
     }
 
@@ -263,73 +270,71 @@ fn select_block(
     mut tick_counter: ResMut<GlobalTick>,
 ) {
     if key_input.just_pressed(KeyCode::Digit1) {
-        if let Some(BlockType::StandardGrass { .. }) = selected_block.0 {
+        if let Some(BlockType::StandardGrass(StandardGrass { .. })) = selected_block.0 {
             info!("Deselecting Grass");
             selected_block.0 = None;
         } else {
             info!("Selecting Grass");
-            selected_block.0 = Some(BlockType::StandardGrass {
-                power: Power::default(),
-            });
+            selected_block.0 = Some(BlockType::StandardGrass(StandardGrass::default()));
         }
     }
+
     if key_input.just_pressed(KeyCode::Digit2) {
-        if let Some(BlockType::RedStone) = selected_block.0 {
+        if let Some(BlockType::RedStone(RedStone { .. })) = selected_block.0 {
             info!("Deselecting RedStone");
             selected_block.0 = None;
         } else {
             info!("Selecting RedStone");
-            selected_block.0 = Some(BlockType::RedStone);
+            selected_block.0 = Some(BlockType::RedStone(RedStone::default()));
         }
     }
+
     if key_input.just_pressed(KeyCode::Digit3) {
         if let Some(BlockType::RedStoneLamp { .. }) = selected_block.0 {
             info!("Deselecting RedStoneLamp");
             selected_block.0 = None;
         } else {
             info!("Selecting RedStoneLamp");
-            selected_block.0 = Some(BlockType::RedStoneLamp { powered: false });
+            selected_block.0 = Some(BlockType::RedStoneLamp(RedStoneLamp::default()));
         }
     }
+
     if key_input.just_pressed(KeyCode::Digit4) {
         if let Some(BlockType::Dust { .. }) = selected_block.0 {
             info!("Deselecting Dust");
             selected_block.0 = None;
         } else {
             info!("Selecting Dust");
-            selected_block.0 = Some(BlockType::Dust {
-                shape: JunctionType::Dot,
-                power: Power::default(),
-            });
+            selected_block.0 = Some(BlockType::Dust(Dust::default()));
         }
     }
 
-    if key_input.just_pressed(KeyCode::Digit5) {
-        if let Some(BlockType::RedStoneTorch { .. }) = selected_block.0 {
-            info!("Deselecting RedStone Torch");
-            selected_block.0 = None;
-        } else {
-            info!("Selecting RedStoneTorch");
-            selected_block.0 = Some(BlockType::RedStoneTorch {
-                on: true,
-                attached_face: IVec3::NEG_X,
-            });
-        }
-    }
+    // if key_input.just_pressed(KeyCode::Digit5) {
+    //     if let Some(BlockType::RedStoneTorch { .. }) = selected_block.0 {
+    //         info!("Deselecting RedStone Torch");
+    //         selected_block.0 = None;
+    //     } else {
+    //         info!("Selecting RedStoneTorch");
+    //         selected_block.0 = Some(BlockType::RedStoneTorch {
+    //             on: true,
+    //             attached_face: IVec3::NEG_X,
+    //         });
+    //     }
+    // }
 
-    if key_input.just_pressed(KeyCode::Digit6) {
-        if let Some(BlockType::StoneButton { .. }) = selected_block.0 {
-            info!("Deselecting Stone Button");
-            selected_block.0 = None;
-        } else {
-            info!("Selecting Stone Button");
-            selected_block.0 = Some(BlockType::StoneButton {
-                ticks: 10,
-                pressed: false,
-                attached_face: IVec3::NEG_X,
-            });
-        }
-    }
+    // if key_input.just_pressed(KeyCode::Digit6) {
+    //     if let Some(BlockType::StoneButton { .. }) = selected_block.0 {
+    //         info!("Deselecting Stone Button");
+    //         selected_block.0 = None;
+    //     } else {
+    //         info!("Selecting Stone Button");
+    //         selected_block.0 = Some(BlockType::StoneButton {
+    //             ticks: 10,
+    //             pressed: false,
+    //             attached_face: IVec3::NEG_X,
+    //         });
+    //     }
+    // }
 
     if key_input.just_pressed(KeyCode::Tab) {
         if tick_counter.is_running() {

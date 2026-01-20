@@ -1,12 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
-    BlockData, BlockType,
-    grid_plugin::{BlockChange, BlockChangeQueue, Grid, UpdateRequest},
-    render::{
-        DirtyBlocks, DirtyRedstone,
-        redstone_renderer::{Position, RedstoneLamp},
-    },
+    BlockType,
+    grid_plugin::{BlockChange, BlockChangeQueue, Grid},
+    render::{DirtyBlocks, Position, redstone_renderer::RedstoneLamp},
 };
 
 const ALL_DIRS: [IVec3; 6] = [
@@ -37,12 +34,11 @@ pub fn propagate_strong_power(
 
         let block_type = block_data.block_type;
 
-        let mut new_strong = 0;
-
         if block_type.is_insulator() {
             continue;
         }
 
+        let mut new_strong = 0;
         for dir in ALL_DIRS {
             let neighbour_pos = position + dir;
             let Some(neighbour_data) = grid.get(neighbour_pos) else {
@@ -57,10 +53,10 @@ pub fn propagate_strong_power(
             ));
         }
 
-        if block_type.strong_power() != new_strong {
+        if block_type.power() != new_strong {
             queue.push(BlockChange::Update(UpdateRequest {
                 position,
-                block_type: block_type.with_weak_power(new_strong),
+                block_type: block_type.with_power(new_strong),
             }));
         }
     }
@@ -112,6 +108,8 @@ pub fn propagate_dust_power(
     let dirty_blocks = dirty_blocks.positions.iter();
     let dirty = dirty_redstone.chain(dirty_blocks);
 
+    info_once!("Propagate rust power");
+
     for &position in dirty {
         let Some(block_data) = grid.get(position) else {
             continue;
@@ -123,6 +121,8 @@ pub fn propagate_dust_power(
             continue;
         }
 
+        info!(?current_block_type, ?position);
+
         let mut new_power = 0;
         for dir in ALL_DIRS {
             let neighbour_pos = position + dir;
@@ -131,17 +131,20 @@ pub fn propagate_dust_power(
             };
 
             let neighbour_block = neighbour_data.block_type;
+            info!(?neighbour_block, ?neighbour_pos);
 
             new_power = new_power.max(neighbour_block.strong_power_emitted_to(
                 position,
                 neighbour_pos,
                 &neighbour_block,
             ));
+            info!(?new_power);
             new_power = new_power.max(
                 neighbour_block
                     .weak_power_emitted(position, neighbour_pos, &current_block_type)
                     .saturating_sub(1),
             );
+            info!(?new_power);
 
             // vertical corners: above and below
             for &y_offset in &[IVec3::Y, IVec3::NEG_Y] {
@@ -158,14 +161,14 @@ pub fn propagate_dust_power(
             }
         }
 
-        info!(
-            "Current block: {:?}, new_power: {}",
-            current_block_type, new_power
-        );
-        if current_block_type.weak_power() != new_power {
+        if current_block_type.power() != new_power {
+            info!(
+                "Current block: {:?}, new_power: {}, position: {}",
+                current_block_type, new_power, position
+            );
             queue.push(BlockChange::Update(UpdateRequest {
                 position,
-                block_type: current_block_type.with_weak_power(new_power),
+                block_type: current_block_type.with_power(new_power),
             }));
         }
     }
@@ -209,10 +212,10 @@ pub fn propagate_block_power(
         }
 
         info!("Current block: {:?}, new_power: {}", block_type, new_power);
-        if block_type.weak_power() != new_power {
+        if block_type.power() != new_power {
             queue.push(BlockChange::Update(UpdateRequest {
                 position,
-                block_type: block_type.with_weak_power(new_power),
+                block_type: block_type.with_power(new_power),
             }));
         }
     }
@@ -237,9 +240,10 @@ pub fn update_redstone_lamps(
 
         for dir in ALL_DIRS {
             let neighbor_pos = pos + dir;
-            if let Some(BlockType::Dust { power, .. }) =
-                grid.get(neighbor_pos).map(|b| &b.block_type)
-                && power.weak > 0
+
+            // BUG: need to ask for power, since now lamps can power lamps
+            if let Some(block_type) = grid.get(neighbor_pos).map(|b| &b.block_type)
+                && block_type.is_powered()
             {
                 has_power = true;
                 break;
@@ -268,5 +272,6 @@ pub fn resolve_full_power(
     ));
     new_power =
         new_power.max(block_type.weak_power_emitted(current_block, neighbour_block, block_type));
+
     new_power
 }

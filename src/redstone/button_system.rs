@@ -4,7 +4,7 @@ use crate::{
     BlockType,
     grid_plugin::{BlockChange, BlockChangeQueue, Grid, UpdateRequest},
     redstone::ticks::GlobalTickEvent,
-    render::redstone_renderer::{Position, Pressed},
+    render::{Position, Pressed},
 };
 
 pub fn button_tick_system(

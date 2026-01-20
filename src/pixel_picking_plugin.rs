@@ -50,9 +50,15 @@ pub fn update_hits(
     };
 
     let early_exit_test = |entity_hit| {
-        pickables
-            .get(entity_hit)
-            .is_ok_and(|pickable| pickable.should_block_lower)
+        let Ok(pickable) = pickables.get(entity_hit) else {
+            return false;
+        };
+
+        if *pickable == Pickable::IGNORE {
+            return false;
+        }
+
+        pickable.should_block_lower
     };
 
     let settings = MeshRayCastSettings::default()

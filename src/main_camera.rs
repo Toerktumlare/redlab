@@ -52,7 +52,7 @@ impl Plugin for MainCameraPlugin {
                 ..default()
             })
             .insert_resource(DebugPickingMode::Noisy)
-            .add_plugins((MeshPickingPlugin, DebugPickingPlugin, PixelPickingPlugin))
+            .add_plugins((DebugPickingPlugin, PixelPickingPlugin))
             .add_systems(Startup, startup)
             .add_systems(
                 Update,

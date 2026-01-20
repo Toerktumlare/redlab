@@ -1,15 +1,14 @@
 use bevy::prelude::*;
 
-pub mod button_system;
+pub mod junctions;
 pub mod ticks;
 
-use crate::block_selection_plugin::{
-    track_grid_cordinate, track_hovered_block, untrack_hovered_block,
-};
+mod scheduler;
+pub use scheduler::{NotifyDelay, Scheduler, Tick, apply_schedule};
 
 #[derive(Resource, Default, Debug)]
 pub struct GlobalTick {
-    counter: u64,
+    counter: Tick,
     is_running: bool,
 }
 
@@ -18,7 +17,7 @@ impl GlobalTick {
         self.counter += 1;
     }
 
-    pub fn read(&self) -> u64 {
+    pub fn read(&self) -> Tick {
         self.counter
     }
 
@@ -93,9 +92,6 @@ pub fn spawn_tcross_north(
                 (Mesh3d(meshes.add(dot)), MeshMaterial3d(material.clone()),)
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -132,9 +128,6 @@ pub fn spawn_tcross_south(
                 (Mesh3d(meshes.add(dot)), MeshMaterial3d(material.clone()),)
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -171,9 +164,6 @@ pub fn spawn_tcross_east(
                 (Mesh3d(meshes.add(dot)), MeshMaterial3d(material.clone()),)
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -210,9 +200,6 @@ pub fn spawn_tcross_west(
                 (Mesh3d(meshes.add(dot)), MeshMaterial3d(material.clone()),)
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -253,9 +240,6 @@ pub fn spawn_corner_nw(
                 ),
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -296,9 +280,6 @@ pub fn spawn_corner_ne(
                 ),
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -339,9 +320,6 @@ pub fn spawn_corner_se(
                 ),
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -382,9 +360,6 @@ pub fn spawn_corner_sw(
                 ),
             ],
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 pub fn spawn_redstone_mesh(
@@ -405,9 +380,6 @@ pub fn spawn_redstone_mesh(
             Transform::from_translation(position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01))
                 .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -432,9 +404,6 @@ pub fn update_redstone_mesh(
             Transform::from_translation(position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01))
                 .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
         ))
-        .observe(track_hovered_block)
-        .observe(track_grid_cordinate)
-        .observe(untrack_hovered_block)
         .id()
 }
 
@@ -448,6 +417,7 @@ pub enum JunctionUVs {
     Dot,
 }
 
+/// TODO: generate and place in precomputed meshes
 pub fn get_mesh(junction_uvs: JunctionUVs) -> Mesh {
     match junction_uvs {
         JunctionUVs::Vertical => {
