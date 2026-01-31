@@ -3,7 +3,8 @@ use std::collections::HashMap;
 
 use crate::{
     BlockData, BlockType,
-    redstone::{GlobalTick, NotifyDelay, Scheduler},
+    blocks::{NeighbourUpdate, RecomputedResult, Tickable},
+    redstone::{GlobalTick, NotifyDelay, Scheduler, Tick},
     render::{DirtyBlocks, DirtyRender},
 };
 
@@ -62,7 +63,7 @@ pub struct Place {
     block_type: BlockType,
     visual_change: bool,
     self_tick: Option<NotifyDelay>,
-    neighbor_tick: Option<NotifyDelay>,
+    neighbor_tick: Vec<NeighbourUpdate>,
 }
 
 impl Place {
@@ -71,7 +72,7 @@ impl Place {
         position: IVec3,
         visual_change: bool,
         self_tick: Option<NotifyDelay>,
-        neighbor_tick: Option<NotifyDelay>,
+        neighbor_tick: Vec<NeighbourUpdate>,
     ) -> Self {
         Self {
             position,
@@ -88,7 +89,7 @@ pub struct Remove {
     position: IVec3,
     visual_change: bool,
     self_tick: Option<NotifyDelay>,
-    neighbor_tick: Option<NotifyDelay>,
+    neighbor_tick: Vec<NeighbourUpdate>,
 }
 
 impl Remove {
@@ -96,7 +97,7 @@ impl Remove {
         position: IVec3,
         visual_change: bool,
         self_tick: Option<NotifyDelay>,
-        neighbor_tick: Option<NotifyDelay>,
+        neighbor_tick: Vec<NeighbourUpdate>,
     ) -> Self {
         Self {
             position,
@@ -119,15 +120,6 @@ pub fn queue_block_change(event: On<BlockChange>, mut queue: ResMut<BlockChangeQ
     queue.push(event.event().clone());
 }
 
-const ALL_DIRS: [IVec3; 6] = [
-    IVec3::NEG_Y,
-    IVec3::Y,
-    IVec3::NEG_Z,
-    IVec3::Z,
-    IVec3::NEG_X,
-    IVec3::X,
-];
-
 pub fn grid_apply_changes(
     mut queue: ResMut<BlockChangeQueue>,
     mut grid: ResMut<Grid>,
@@ -136,45 +128,62 @@ pub fn grid_apply_changes(
     mut scheduler: ResMut<Scheduler>,
     global_tick: Res<GlobalTick>,
 ) {
+    let now = global_tick.read();
     for change in queue.drain() {
-        let (inserted_position, visual_change, self_tick, neighbor_tick) = match change {
-            BlockChange::Place(event) => (
-                try_place(&mut grid, &event),
-                event.visual_change,
-                event.self_tick,
-                event.neighbor_tick,
-            ),
-            BlockChange::Remove(event) => (
-                try_remove(&mut grid, event.position),
-                event.visual_change,
-                event.self_tick,
-                event.neighbor_tick,
-            ),
+        if let Some(position) = apply_change(&mut grid, &change) {
+            info!("Current block proccessed: {}", position);
+            schedule_self_tick(position, &mut scheduler, now, &change);
+
+            schedule_ticks_and_mark_neighbours(
+                position,
+                &grid,
+                &mut scheduler,
+                &mut dirty_blocks,
+                &change,
+                now,
+            );
+
+            mark_for_redraw(position, &mut dirty_render, &change);
+        }
+    }
+
+    while let Some(position) = scheduler.immediate.pop_front() {
+        let block_type = match grid.get_blocktype(position) {
+            Some(bt) => *bt,
+            None => continue,
         };
 
-        if let Some(inserted_position) = inserted_position {
-            let now = global_tick.read();
+        let result = block_type.on_tick(&grid, position);
 
-            if let Some(self_tick) = self_tick {
-                info!("Scheduling self: {}", inserted_position);
-                scheduler.schedule(inserted_position, &self_tick, now);
+        if let RecomputedResult::Changed {
+            new_block,
+            visual_update,
+            self_tick,
+            neighbor_tick,
+        } = result
+        {
+            match new_block {
+                Some(block_type) => grid.insert(position, BlockData { block_type }),
+                None => grid.remove(position),
             }
 
-            for dir in ALL_DIRS {
-                let position = inserted_position + dir;
-                if grid.get(position).is_some() {
-                    if let Some(neighbor_tick) = &neighbor_tick {
-                        info!("Scheduling neighbour: {}", position);
-                        scheduler.schedule(inserted_position, neighbor_tick, now);
-                    }
+            if let Some(self_tick) = self_tick {
+                scheduler.schedule(position, &self_tick, now);
+            }
 
+            for update in neighbor_tick {
+                let position = position + update.position;
+                if grid.get(position).is_some() {
+                    info!("Scheduling neighbour: {}", position);
+                    scheduler.schedule(position, &update.notification, now);
+
+                    info!("Marking block as dirty: {}", position);
                     dirty_blocks.mark(position);
                 }
             }
 
-            if visual_change {
-                info!("marked: {} to render", inserted_position);
-                dirty_render.mark(inserted_position);
+            if visual_update {
+                dirty_render.mark(position);
             }
         }
     }
@@ -194,4 +203,57 @@ fn try_remove(grid: &mut Grid, position: IVec3) -> Option<IVec3> {
         return Some(position);
     }
     None
+}
+
+fn apply_change(grid: &mut Grid, block_change: &BlockChange) -> Option<IVec3> {
+    match block_change {
+        BlockChange::Place(event) => try_place(grid, event),
+        BlockChange::Remove(event) => try_remove(grid, event.position),
+    }
+}
+
+fn schedule_self_tick(position: IVec3, scheduler: &mut Scheduler, now: Tick, change: &BlockChange) {
+    if let Some(self_tick) = match change {
+        BlockChange::Place(event) => &event.self_tick,
+        BlockChange::Remove(event) => &event.self_tick,
+    } {
+        info!("Scheduling self: {}", position);
+        scheduler.schedule(position, self_tick, now);
+    }
+}
+
+fn schedule_ticks_and_mark_neighbours(
+    position: IVec3,
+    grid: &Grid,
+    scheduler: &mut Scheduler,
+    dirty_blocks: &mut DirtyBlocks,
+    change: &BlockChange,
+    now: Tick,
+) {
+    let neighbor_tick = match change {
+        BlockChange::Place(event) => &event.neighbor_tick,
+        BlockChange::Remove(event) => &event.neighbor_tick,
+    };
+
+    for n_update in neighbor_tick {
+        let position = position + n_update.position;
+        if grid.get(position).is_some() {
+            info!("Scheduling neighbour: {}", position);
+            scheduler.schedule(position, &n_update.notification, now);
+
+            info!("Marking block as dirty: {}", position);
+            dirty_blocks.mark(position);
+        }
+    }
+}
+
+fn mark_for_redraw(position: IVec3, dirty_render: &mut DirtyRender, change: &BlockChange) {
+    let visual_change = match change {
+        BlockChange::Place(event) => event.visual_change,
+        BlockChange::Remove(event) => event.visual_change,
+    };
+
+    if visual_change {
+        dirty_render.mark(position);
+    }
 }

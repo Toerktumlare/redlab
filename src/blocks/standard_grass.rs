@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     RenderCtx, TextureAtlas,
     block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
-    blocks::{Block, BlockType, RecomputedResult, Renderable, Tickable},
+    blocks::{Block, BlockType, Dirt, NeighbourUpdate, RecomputedResult, Renderable, Tickable},
     grid_plugin::Grid,
     meshes::MeshId,
     redstone::NotifyDelay,
@@ -15,13 +15,49 @@ pub struct StandardGrass {
 }
 
 impl Block for StandardGrass {
-    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult {
+    fn on_placement(&self, grid: &Grid, position: IVec3, _normal: IVec3) -> RecomputedResult<'_> {
         let Some(_) = grid.get(position) else {
             return RecomputedResult::Changed {
                 new_block: Some(BlockType::StandardGrass(*self)),
                 visual_update: true,
                 self_tick: Some(NotifyDelay::Immediate),
-                neighbor_tick: Some(NotifyDelay::NextTick),
+                neighbor_tick: NeighbourUpdate::DEFAULT,
+            };
+        };
+        RecomputedResult::Unchanged
+    }
+
+    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
+        let Some(_) = grid.get(position) else {
+            let above = position + IVec3::Y;
+            let Some(above_block_data) = grid.get(above) else {
+                return RecomputedResult::Changed {
+                    new_block: Some(BlockType::StandardGrass(*self)),
+                    visual_update: true,
+                    self_tick: Some(NotifyDelay::Immediate),
+                    neighbor_tick: NeighbourUpdate::DEFAULT,
+                };
+            };
+
+            if matches!(
+                above_block_data.block_type,
+                BlockType::StandardGrass(_) | BlockType::Dirt(_)
+            ) {
+                return RecomputedResult::Changed {
+                    new_block: Some(BlockType::Dirt(Dirt {
+                        power: self.power(),
+                    })),
+                    visual_update: true,
+                    self_tick: None,
+                    neighbor_tick: NeighbourUpdate::NONE,
+                };
+            };
+
+            return RecomputedResult::Changed {
+                new_block: Some(BlockType::StandardGrass(*self)),
+                visual_update: true,
+                self_tick: None,
+                neighbor_tick: NeighbourUpdate::NONE,
             };
         };
 
@@ -30,21 +66,22 @@ impl Block for StandardGrass {
             return RecomputedResult::Unchanged;
         };
 
-        let BlockType::StandardGrass(_) = block_data.block_type else {
-            return RecomputedResult::Unchanged;
+        if let BlockType::StandardGrass(_) = block_data.block_type {
+            return RecomputedResult::Changed {
+                new_block: Some(BlockType::Dirt(Dirt {
+                    power: self.power(),
+                })),
+                visual_update: true,
+                self_tick: Some(NotifyDelay::Immediate),
+                neighbor_tick: NeighbourUpdate::NONE,
+            };
         };
 
         if block_data.block_type.power() == self.power() {
             return RecomputedResult::Unchanged;
         }
 
-        // TODO: make Unchanged the default
-        RecomputedResult::Changed {
-            new_block: Some(BlockType::StandardGrass(*self)),
-            visual_update: true,
-            self_tick: None,
-            neighbor_tick: None,
-        }
+        RecomputedResult::Unchanged
     }
 
     fn try_place(&self, _grid: &Grid, _position: IVec3) -> bool {
@@ -57,7 +94,7 @@ impl Block for StandardGrass {
 }
 
 impl Tickable for StandardGrass {
-    fn on_tick(&self, _grid: &Grid, position: IVec3) -> RecomputedResult {
+    fn on_tick(&self, _grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
         info!("Grass: {} ticked", position);
         RecomputedResult::Unchanged
     }

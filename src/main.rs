@@ -13,18 +13,20 @@ use crate::{
         BlockInteractionPlugin, request_delete_hovered_block, request_place_selected_block,
     },
     block_selection_plugin::BlockSelectionPlugin,
-    blocks::{BlockType, Dust, RedStone, RedStoneLamp, StandardGrass},
+    blocks::{
+        BlockType, Dust, NeighbourUpdate, RedStone, RedStoneLamp, RedStoneTorch, StandardGrass,
+    },
     grid_plugin::{BlockChange, Grid, GridPlugin, Place, grid_apply_changes, queue_block_change},
     main_camera::MainCameraPlugin,
     materials::redstone::{RedstoneColors, RedstoneMaterials, setup_redstone_materials},
     meshes::{MeshRegistry, setup_mesh_registry},
     redstone::{
-        GlobalTick, NotifyDelay, Scheduler, apply_schedule,
+        GlobalTick, Scheduler,
         ticks::{GlobalTickEvent, tick_the_counter},
     },
     render::{
-        BlockEntities, DirtyRender, RenderPlugin, basic_blocks, cleanup, debug_info, hovered_block,
-        renderer, scheduler_info,
+        BlockEntities, DirtyRender, RenderPlugin, cleanup, debug_info, hovered_block, renderer,
+        scheduler_info,
     },
     shaders::block::BlockMaterial,
     systems::recalculate_dirty_blocks,
@@ -145,7 +147,7 @@ fn main() {
             )
                 .chain(),
         )
-        .add_systems(FixedUpdate, (tick_the_counter, apply_schedule).chain())
+        .add_systems(FixedUpdate, (tick_the_counter).chain())
         .add_systems(
             Update,
             (draw_on_hover_arrow, select_block).in_set(GameLoop::Input),
@@ -155,34 +157,10 @@ fn main() {
             (request_place_selected_block, request_delete_hovered_block).in_set(GameLoop::Input),
         )
         .add_systems(Update, grid_apply_changes.in_set(GameLoop::Apply))
+        .add_systems(Update, (recalculate_dirty_blocks,).in_set(GameLoop::React))
         .add_systems(
             Update,
-            (
-                recalculate_dirty_blocks
-                // update_grass_to_dirt,
-                // update_redstone_junction_type,
-                // propagate_strong_power,
-                // propagate_torch_power,
-                // propagate_block_power,
-                // propagate_dust_power,
-                // button_tick_system,
-                // update_redstone_lamps,
-            )
-                .in_set(GameLoop::React),
-        )
-        .add_systems(
-            Update,
-            (
-                renderer,
-                // basic_blocks,
-                // redstone_block,
-                // redstone_lamp,
-                // dust,
-                debug_info,
-                hovered_block,
-                scheduler_info,
-                cleanup,
-            )
+            (renderer, debug_info, hovered_block, scheduler_info, cleanup)
                 .chain()
                 .in_set(GameLoop::Render),
         )
@@ -220,7 +198,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
         TextColor(GHOST_WHITE.into())
     ));
 
-    let grid_size = 1;
+    let grid_size = 5;
     let half_grid = grid_size / 2;
 
     let blocks: Handle<Image> = asset_server.load("cube-sheet.png");
@@ -237,8 +215,8 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
                 BlockType::StandardGrass(StandardGrass::default()),
                 position,
                 true,
-                Some(NotifyDelay::In(20)),
-                Some(NotifyDelay::In(30)),
+                None,
+                NeighbourUpdate::NONE.to_vec(),
             )));
         }
     }
@@ -309,18 +287,15 @@ fn select_block(
         }
     }
 
-    // if key_input.just_pressed(KeyCode::Digit5) {
-    //     if let Some(BlockType::RedStoneTorch { .. }) = selected_block.0 {
-    //         info!("Deselecting RedStone Torch");
-    //         selected_block.0 = None;
-    //     } else {
-    //         info!("Selecting RedStoneTorch");
-    //         selected_block.0 = Some(BlockType::RedStoneTorch {
-    //             on: true,
-    //             attached_face: IVec3::NEG_X,
-    //         });
-    //     }
-    // }
+    if key_input.just_pressed(KeyCode::Digit5) {
+        if let Some(BlockType::RedStoneTorch { .. }) = selected_block.0 {
+            info!("Deselecting RedStone Torch");
+            selected_block.0 = None;
+        } else {
+            info!("Selecting RedStoneTorch");
+            selected_block.0 = Some(BlockType::RedStoneTorch(RedStoneTorch::default()));
+        }
+    }
 
     // if key_input.just_pressed(KeyCode::Digit6) {
     //     if let Some(BlockType::StoneButton { .. }) = selected_block.0 {

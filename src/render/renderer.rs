@@ -18,6 +18,7 @@ pub fn renderer(mut ctx: RenderCtx, dirty_render: Res<DirtyRender>) {
             }
 
             (None, Some(entity)) => {
+                info!("deleted dust {}", entity);
                 ctx.commands.entity(entity).despawn();
                 ctx.block_entities.entities.remove(position);
             }

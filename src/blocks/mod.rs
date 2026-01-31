@@ -6,12 +6,14 @@ mod dirt;
 mod dust;
 mod redstone_block;
 mod redstone_lamp;
+mod redstone_torch;
 mod standard_grass;
 
 pub use dirt::Dirt;
 pub use dust::Dust;
 pub use redstone_block::RedStone;
 pub use redstone_lamp::RedStoneLamp;
+pub use redstone_torch::RedStoneTorch;
 pub use standard_grass::StandardGrass;
 
 pub const ALL_DIRS: &[IVec3; 6] = &[
@@ -26,16 +28,17 @@ pub const ALL_DIRS: &[IVec3; 6] = &[
 pub const DIRS: &[IVec3; 4] = &[IVec3::Z, IVec3::NEG_Z, IVec3::X, IVec3::NEG_X];
 
 pub trait Block {
-    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult;
+    fn on_placement(&self, grid: &Grid, position: IVec3, normal: IVec3) -> RecomputedResult<'_>;
+    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_>;
     fn try_place(&self, grid: &Grid, position: IVec3) -> bool;
     fn power(&self) -> u8;
-    fn is_powered(&self) -> bool {
-        self.power() > 0
-    }
+    // fn is_powered(&self) -> bool {
+    //     self.power() > 0
+    // }
 }
 
 pub trait Tickable {
-    fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult;
+    fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_>;
 }
 
 pub trait Renderable {
@@ -50,10 +53,7 @@ pub enum BlockType {
     Dirt(Dirt),
     RedStone(RedStone),
     RedStoneLamp(RedStoneLamp),
-    // RedStoneTorch {
-    //     on: bool,
-    //     attached_face: IVec3,
-    // },
+    RedStoneTorch(RedStoneTorch),
     Dust(Dust),
     // StoneButton {
     //     pressed: bool,
@@ -312,13 +312,26 @@ impl Block for BlockType {
     //     )
     // }
 
-    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult {
+    fn on_placement(&self, grid: &Grid, position: IVec3, normal: IVec3) -> RecomputedResult<'_> {
+        match self {
+            BlockType::Air => todo!(),
+            BlockType::StandardGrass(block) => block.on_placement(grid, position, normal),
+            BlockType::Dirt(block) => block.on_placement(grid, position, normal),
+            BlockType::RedStone(block) => block.on_placement(grid, position, normal),
+            BlockType::RedStoneLamp(block) => block.on_placement(grid, position, normal),
+            BlockType::RedStoneTorch(block) => block.on_placement(grid, position, normal),
+            BlockType::Dust(block) => block.on_placement(grid, position, normal),
+        }
+    }
+
+    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
         match self {
             BlockType::StandardGrass(block) => block.neighbor_changed(grid, position),
             BlockType::RedStone(block) => block.neighbor_changed(grid, position),
             BlockType::Dirt(block) => block.neighbor_changed(grid, position),
             BlockType::RedStoneLamp(block) => block.neighbor_changed(grid, position),
             BlockType::Dust(block) => block.neighbor_changed(grid, position),
+            BlockType::RedStoneTorch(block) => block.neighbor_changed(grid, position),
             _ => todo!("recalculate has not been implemented for: {:?}", self),
         }
     }
@@ -330,6 +343,7 @@ impl Block for BlockType {
             BlockType::RedStone(block) => block.try_place(grid, position),
             BlockType::RedStoneLamp(block) => block.try_place(grid, position),
             BlockType::Dust(block) => block.try_place(grid, position),
+            BlockType::RedStoneTorch(block) => block.try_place(grid, position),
             _ => todo!("try_place has not been implemented for: {:?}", self),
         }
     }
@@ -341,18 +355,19 @@ impl Block for BlockType {
             BlockType::RedStone(red_stone) => red_stone.power(),
             BlockType::RedStoneLamp(red_stone_lamp) => red_stone_lamp.power(),
             BlockType::Dust(dust) => dust.power(),
+            BlockType::RedStoneTorch(block) => block.power(),
             _ => todo!("No power has been implemented for block: {:?}", self),
         }
     }
 }
 
 impl Tickable for BlockType {
-    fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult {
+    fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
         match self {
             BlockType::StandardGrass(block) => block.on_tick(grid, position),
             BlockType::Dirt(block) => block.on_tick(grid, position),
             BlockType::RedStone(_) => RecomputedResult::Unchanged,
-            BlockType::RedStoneLamp(_) => RecomputedResult::Unchanged,
+            BlockType::RedStoneLamp(block) => block.on_tick(grid, position),
             BlockType::Dust(block) => block.on_tick(grid, position),
             _ => RecomputedResult::Unchanged,
         }
@@ -368,6 +383,7 @@ impl Renderable for BlockType {
             BlockType::RedStone(red_stone) => red_stone.spawn(ctx, position),
             BlockType::RedStoneLamp(red_stone_lamp) => red_stone_lamp.spawn(ctx, position),
             BlockType::Dust(dust) => dust.spawn(ctx, position),
+            BlockType::RedStoneTorch(block) => block.spawn(ctx, position),
         }
     }
 
@@ -381,17 +397,60 @@ impl Renderable for BlockType {
             BlockType::RedStone(red_stone) => red_stone.update(ctx, entity, position),
             BlockType::RedStoneLamp(red_stone_lamp) => red_stone_lamp.update(ctx, entity, position),
             BlockType::Dust(dust) => dust.update(ctx, entity, position),
+            BlockType::RedStoneTorch(block) => block.update(ctx, entity, position),
         }
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub enum RecomputedResult {
+pub enum RecomputedResult<'a> {
     Changed {
         new_block: Option<BlockType>,
         visual_update: bool,
         self_tick: Option<NotifyDelay>,
-        neighbor_tick: Option<NotifyDelay>,
+        neighbor_tick: &'a [NeighbourUpdate],
     },
     Unchanged,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NeighbourUpdate {
+    pub position: IVec3,
+    pub notification: NotifyDelay,
+}
+
+impl NeighbourUpdate {
+    pub const NONE: &[Self] = &[];
+    pub const DEFAULT: &[Self] = &[
+        NeighbourUpdate::new(IVec3::X, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_X, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::Z, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_Z, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::Y, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_Y, NotifyDelay::Immediate),
+    ];
+
+    pub const EXTENDED: &[Self] = &[
+        NeighbourUpdate::new(IVec3::X, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_X, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::Z, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_Z, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::Y, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_Y, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(1, 1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(-1, 1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, 1, 1), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, 1, -1), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(1, -1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(-1, -1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, -1, 1), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, -1, -1), NotifyDelay::Immediate),
+    ];
+
+    pub const fn new(position: IVec3, notification: NotifyDelay) -> Self {
+        Self {
+            position,
+            notification,
+        }
+    }
 }

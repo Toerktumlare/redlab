@@ -3,9 +3,8 @@ use bevy::prelude::*;
 use crate::{
     BlockType, SelectedBlock,
     block_selection_plugin::HoveredBlockInfo,
-    blocks::{Block, RecomputedResult},
+    blocks::{Block, NeighbourUpdate, RecomputedResult},
     grid_plugin::{BlockChange, Grid, Place, Remove},
-    redstone::NotifyDelay,
     render::DirtyRender,
 };
 
@@ -51,7 +50,7 @@ pub fn try_place_in_world(event: On<ClickEvent>, mut commands: Commands, grid: R
 
         // TODO: resolve side placement from normal
 
-        let result = block_type.neighbor_changed(&grid, position);
+        let result = block_type.on_placement(&grid, position, normal);
 
         let (block_type, visual_update, self_tick, neighbor_tick) = match result {
             RecomputedResult::Changed {
@@ -65,7 +64,7 @@ pub fn try_place_in_world(event: On<ClickEvent>, mut commands: Commands, grid: R
                 self_tick,
                 neighbor_tick,
             ),
-            RecomputedResult::Unchanged => (block_type, false, None, None),
+            RecomputedResult::Unchanged => (block_type, false, None, NeighbourUpdate::NONE),
         };
 
         if !block_type.try_place(&grid, position) {
@@ -77,7 +76,7 @@ pub fn try_place_in_world(event: On<ClickEvent>, mut commands: Commands, grid: R
             position,
             visual_update,
             self_tick,
-            neighbor_tick,
+            neighbor_tick.to_vec(),
         )));
     }
 }
@@ -117,7 +116,7 @@ pub fn request_delete_hovered_block(
             position,
             true,
             None,
-            Some(NotifyDelay::NextTick),
+            NeighbourUpdate::EXTENDED.to_vec(),
         )));
 
         dirty_render.mark(position);

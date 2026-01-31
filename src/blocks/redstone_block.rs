@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     RenderCtx, TextureAtlas,
     block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
-    blocks::{Block, BlockType, RecomputedResult, Renderable},
+    blocks::{Block, BlockType, NeighbourUpdate, RecomputedResult, Renderable},
     grid_plugin::Grid,
     meshes::MeshId,
 };
@@ -14,7 +14,19 @@ pub struct RedStone {
 }
 
 impl Block for RedStone {
-    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult {
+    fn on_placement(&self, grid: &Grid, position: IVec3, _normal: IVec3) -> RecomputedResult<'_> {
+        let Some(_) = grid.get(position) else {
+            return RecomputedResult::Changed {
+                new_block: Some(BlockType::RedStone(*self)),
+                visual_update: true,
+                self_tick: None,
+                neighbor_tick: NeighbourUpdate::DEFAULT,
+            };
+        };
+        RecomputedResult::Unchanged
+    }
+
+    fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
         let None = grid.get(position) else {
             return RecomputedResult::Unchanged;
         };
@@ -22,7 +34,7 @@ impl Block for RedStone {
             new_block: Some(BlockType::RedStone(*self)),
             visual_update: true,
             self_tick: None,
-            neighbor_tick: None,
+            neighbor_tick: NeighbourUpdate::DEFAULT,
         }
     }
 

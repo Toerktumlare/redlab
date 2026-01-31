@@ -34,13 +34,13 @@ pub fn recalculate_dirty_blocks(
                         position,
                         visual_update,
                         self_tick,
-                        neighbor_tick,
+                        neighbor_tick.to_vec(),
                     ))),
                     None => queue.push(BlockChange::Remove(Remove::new(
                         position,
                         visual_update,
                         self_tick,
-                        neighbor_tick,
+                        neighbor_tick.to_vec(),
                     ))),
                 }
 

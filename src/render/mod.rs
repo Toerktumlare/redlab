@@ -6,19 +6,11 @@ use crate::grid_plugin::Grid;
 
 mod debug;
 mod drain;
-mod dust;
-mod redstone_block;
-mod redstone_lamp;
 mod renderer;
-mod standard_blocks;
 
 pub use debug::{debug_info, hovered_block, scheduler_info};
 pub use drain::cleanup;
-pub use dust::dust;
-pub use redstone_block::redstone_block;
-pub use redstone_lamp::redstone_lamp;
 pub use renderer::renderer;
-pub use standard_blocks::basic_blocks;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Position(pub IVec3);

@@ -4,7 +4,7 @@ pub mod junctions;
 pub mod ticks;
 
 mod scheduler;
-pub use scheduler::{NotifyDelay, Scheduler, Tick, apply_schedule};
+pub use scheduler::{NotifyDelay, Scheduler, Tick};
 
 #[derive(Resource, Default, Debug)]
 pub struct GlobalTick {
@@ -373,30 +373,6 @@ pub fn spawn_redstone_mesh(
             Name::new("Redstone"),
             Mesh3d(mesh),
             MeshMaterial3d(material.clone()),
-            Pickable {
-                is_hoverable: true,
-                ..default()
-            },
-            Transform::from_translation(position.as_vec3() - (Vec3::Y * 0.5) + (Vec3::Y * 0.01))
-                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-        ))
-        .id()
-}
-
-pub fn update_redstone_mesh(
-    entity: &Entity,
-    mesh: Mesh,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    position: IVec3,
-    material: Handle<StandardMaterial>,
-) -> Entity {
-    commands
-        .entity(*entity)
-        .insert((
-            Name::new("Updated Mesh"),
-            Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(material),
             Pickable {
                 is_hoverable: true,
                 ..default()

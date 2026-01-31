@@ -6,11 +6,6 @@ use bevy::{
     platform::collections::{HashMap, HashSet},
 };
 
-use crate::{
-    blocks::{RecomputedResult, Tickable},
-    grid_plugin::{BlockChange, BlockChangeQueue, Grid, Place, Remove},
-};
-
 pub type Tick = u64;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,7 +17,7 @@ pub enum NotifyDelay {
 
 #[derive(Resource, Default)]
 pub struct Scheduler {
-    immediate: VecDeque<IVec3>,
+    pub immediate: VecDeque<IVec3>,
     scheduled: HashMap<u64, HashSet<IVec3>>,
 }
 
@@ -56,44 +51,3 @@ impl Scheduler {
         queue.into_iter()
     }
 }
-
-pub fn apply_schedule(
-    mut scheduler: ResMut<Scheduler>,
-    grid: Res<Grid>,
-    mut queue: ResMut<BlockChangeQueue>,
-) {
-    while let Some(position) = scheduler.immediate.pop_front() {
-        let block_type = grid.get_blocktype(position);
-
-        if let Some(block_type) = block_type {
-            let result = block_type.on_tick(&grid, position);
-
-            let RecomputedResult::Changed {
-                new_block,
-                visual_update,
-                self_tick,
-                neighbor_tick,
-            } = result
-            else {
-                continue;
-            };
-
-            match new_block {
-                Some(block) => queue.push(BlockChange::Place(Place::new(
-                    block,
-                    position,
-                    visual_update,
-                    self_tick,
-                    neighbor_tick,
-                ))),
-                None => queue.push(BlockChange::Remove(Remove::new(
-                    position,
-                    visual_update,
-                    self_tick,
-                    neighbor_tick,
-                ))),
-            }
-        }
-    }
-}
-
