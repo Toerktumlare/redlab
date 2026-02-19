@@ -53,9 +53,9 @@ pub(crate) const REDSTONE_TORCH_TOP: FaceUvs = [
 ];
 
 pub(crate) const REDSTONE_TORCH_BOTTOM: FaceUvs = [
+    Vec2::new(110.0, 124.0),
     Vec2::new(114.0, 124.0),
-    Vec2::new(114.0, 124.0),
-    Vec2::new(110.0, 128.0),
+    Vec2::new(114.0, 128.0),
     Vec2::new(110.0, 128.0),
 ];
 
@@ -78,6 +78,41 @@ pub(crate) const REDSTONE_TORCH_SIDES: FaceUvs = [
     Vec2::new(114.0, 128.0),
     Vec2::new(114.0, 108.0),
     Vec2::new(110.0, 108.0),
+];
+
+pub(crate) const REDSTONE_TORCH_TOP_OFF: FaceUvs = [
+    Vec2::new(142.0, 108.0),
+    Vec2::new(146.0, 108.0),
+    Vec2::new(146.0, 112.0),
+    Vec2::new(142.0, 112.0),
+];
+
+pub(crate) const REDSTONE_TORCH_BOTTOM_OFF: FaceUvs = [
+    Vec2::new(142.0, 124.0),
+    Vec2::new(146.0, 124.0),
+    Vec2::new(146.0, 128.0),
+    Vec2::new(148.0, 128.0),
+];
+
+pub(crate) const REDSTONE_TORCH_FRONT_OFF: FaceUvs = [
+    Vec2::new(142.0, 128.0),
+    Vec2::new(146.0, 128.0),
+    Vec2::new(146.0, 108.0),
+    Vec2::new(142.0, 108.0),
+];
+
+pub(crate) const REDSTONE_TORCH_BACK_OFF: FaceUvs = [
+    Vec2::new(142.0, 128.0),
+    Vec2::new(146.0, 128.0),
+    Vec2::new(146.0, 108.0),
+    Vec2::new(142.0, 108.0),
+];
+
+pub(crate) const REDSTONE_TORCH_SIDES_OFF: FaceUvs = [
+    Vec2::new(142.0, 128.0),
+    Vec2::new(146.0, 128.0),
+    Vec2::new(146.0, 108.0),
+    Vec2::new(142.0, 108.0),
 ];
 
 pub(crate) const REDSTONE_TORCH_GLOW: FaceUvs = [

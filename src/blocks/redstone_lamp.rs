@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::{
     RenderCtx, TextureAtlas,
-    block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     blocks::{ALL_DIRS, Block, BlockType, NeighbourUpdate, RecomputedResult, Renderable, Tickable},
     grid_plugin::Grid,
+    interactions::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     meshes::{MeshId, MeshRegistry},
     redstone::NotifyDelay,
     render::Position,
@@ -69,10 +69,6 @@ impl Block for RedStoneLamp {
     fn try_place(&self, _grid: &Grid, _position: IVec3) -> bool {
         true
     }
-
-    fn power(&self) -> u8 {
-        self.power
-    }
 }
 
 impl Tickable for RedStoneLamp {
@@ -108,6 +104,10 @@ impl Tickable for RedStoneLamp {
         } else {
             RecomputedResult::Unchanged
         }
+    }
+
+    fn power(&self) -> u8 {
+        self.power
     }
 }
 

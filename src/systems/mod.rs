@@ -30,7 +30,7 @@ pub fn recalculate_dirty_blocks(
             } => {
                 match new_block {
                     Some(new_block) => queue.push(BlockChange::Place(Place::new(
-                        new_block,
+                        Some(new_block),
                         position,
                         visual_update,
                         self_tick,

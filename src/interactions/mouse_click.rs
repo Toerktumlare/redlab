@@ -1,23 +1,16 @@
 use bevy::prelude::*;
 
 use crate::{
-    BlockType, SelectedBlock,
-    block_selection_plugin::HoveredBlockInfo,
-    blocks::{Block, NeighbourUpdate, RecomputedResult},
-    grid_plugin::{BlockChange, Grid, Place, Remove},
+    SelectedBlock,
+    blocks::{Block, BlockType, NeighbourUpdate, RecomputedResult},
+    grid_plugin::Remove,
+    grid_plugin::{BlockChange, Grid, Place},
+    interactions::HoveredBlockInfo,
     render::DirtyRender,
 };
 
-pub struct BlockInteractionPlugin;
-
-impl Plugin for BlockInteractionPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
-        app.add_observer(try_place_in_world);
-    }
-}
-
 #[derive(Event, Debug)]
-pub struct ClickEvent(Action);
+pub struct ClickEvent(pub Action);
 
 #[derive(Debug)]
 pub enum Action {
@@ -25,7 +18,7 @@ pub enum Action {
     Interact(IVec3),
 }
 
-pub fn request_place_selected_block(
+pub(crate) fn request_place_selected_block(
     mut commands: Commands,
     selected_block: Res<SelectedBlock>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
@@ -44,7 +37,7 @@ pub fn request_place_selected_block(
     }
 }
 
-pub fn try_place_in_world(event: On<ClickEvent>, mut commands: Commands, grid: Res<Grid>) {
+pub(crate) fn try_place_in_world(event: On<ClickEvent>, mut commands: Commands, grid: Res<Grid>) {
     if let Action::PlaceBlock(block_type, position, normal) = event.0 {
         let position = position + normal;
 
@@ -72,7 +65,7 @@ pub fn try_place_in_world(event: On<ClickEvent>, mut commands: Commands, grid: R
         };
 
         commands.trigger(BlockChange::Place(Place::new(
-            block_type,
+            Some(block_type),
             position,
             visual_update,
             self_tick,
@@ -81,29 +74,7 @@ pub fn try_place_in_world(event: On<ClickEvent>, mut commands: Commands, grid: R
     }
 }
 
-// pub fn try_interact_with_world(event: On<ClickEvent>, mut commands: Commands, grid: Res<Grid>) {
-//     if let Action::Interact(position) = event.0 {
-//         let Some(block_data) = grid.get(position) else {
-//             return;
-//         };
-
-//         if block_data.block_type.is_button()
-//             && !block_data.block_type.is_pressed()
-//             && let BlockType::StoneButton { attached_face, .. } = block_data.block_type
-//         {
-//             commands.trigger(BlockChange::Update(UpdateRequest {
-//                 position,
-//                 block_type: BlockType::StoneButton {
-//                     pressed: true,
-//                     attached_face,
-//                     ticks: 15,
-//                 },
-//             }));
-//         }
-//     }
-// }
-
-pub fn request_delete_hovered_block(
+pub(crate) fn request_delete_hovered_block(
     mut commands: Commands,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     hovered_block: Res<HoveredBlockInfo>,

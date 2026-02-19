@@ -1,7 +1,4 @@
-use bevy::{
-    color::palettes::tailwind::RED_500, ecs::system::SystemParam,
-    picking::pointer::PointerInteraction, prelude::*, window::WindowResolution,
-};
+use bevy::{ecs::system::SystemParam, prelude::*, window::WindowResolution};
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
 use std::{collections::HashMap, time::Duration};
@@ -9,14 +6,9 @@ use std::{collections::HashMap, time::Duration};
 use bevy::color::palettes::css::GHOST_WHITE;
 
 use crate::{
-    block_interaction_plugin::{
-        BlockInteractionPlugin, request_delete_hovered_block, request_place_selected_block,
-    },
-    block_selection_plugin::BlockSelectionPlugin,
-    blocks::{
-        BlockType, Dust, NeighbourUpdate, RedStone, RedStoneLamp, RedStoneTorch, StandardGrass,
-    },
+    blocks::{BlockType, NeighbourUpdate, StandardGrass},
     grid_plugin::{BlockChange, Grid, GridPlugin, Place, grid_apply_changes, queue_block_change},
+    interactions::BlockInteractionPlugin,
     main_camera::MainCameraPlugin,
     materials::redstone::{RedstoneColors, RedstoneMaterials, setup_redstone_materials},
     meshes::{MeshRegistry, setup_mesh_registry},
@@ -33,11 +25,11 @@ use crate::{
     ui::debug_view_system,
 };
 
-mod block_interaction_plugin;
-mod block_selection_plugin;
 // mod block_texture_updater;
+mod block_position;
 mod blocks;
 mod grid_plugin;
+mod interactions;
 mod main_camera;
 mod materials;
 mod meshes;
@@ -126,7 +118,6 @@ fn main() {
         .add_plugins((
             GridPlugin,
             MainCameraPlugin,
-            BlockSelectionPlugin,
             BlockInteractionPlugin,
             RenderPlugin,
         ))
@@ -148,14 +139,6 @@ fn main() {
                 .chain(),
         )
         .add_systems(FixedUpdate, (tick_the_counter).chain())
-        .add_systems(
-            Update,
-            (draw_on_hover_arrow, select_block).in_set(GameLoop::Input),
-        )
-        .add_systems(
-            Update,
-            (request_place_selected_block, request_delete_hovered_block).in_set(GameLoop::Input),
-        )
         .add_systems(Update, grid_apply_changes.in_set(GameLoop::Apply))
         .add_systems(Update, (recalculate_dirty_blocks,).in_set(GameLoop::React))
         .add_systems(
@@ -212,7 +195,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
 
             // TODO: recalculate block here before insertion
             commands.trigger(BlockChange::Place(Place::new(
-                BlockType::StandardGrass(StandardGrass::default()),
+                Some(BlockType::StandardGrass(StandardGrass::default())),
                 position,
                 true,
                 None,
@@ -231,91 +214,3 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, mut textures:
 //     let v = rng.next_u32(); // 0 ..= u32::MAX
 //     (v as f32) / (u32::MAX as f32) // 0.0 .. 1.0
 // }
-
-fn draw_on_hover_arrow(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {
-    for (point, normal) in pointers
-        .iter()
-        .filter_map(|interactions| interactions.get_nearest_hit())
-        .filter_map(|(_entity, hit)| hit.position.zip(hit.normal))
-    {
-        gizmos.arrow(point, point + normal.normalize() * 0.5, RED_500);
-    }
-}
-
-fn select_block(
-    key_input: Res<ButtonInput<KeyCode>>,
-    mut selected_block: ResMut<SelectedBlock>,
-    mut tick_counter: ResMut<GlobalTick>,
-) {
-    if key_input.just_pressed(KeyCode::Digit1) {
-        if let Some(BlockType::StandardGrass(StandardGrass { .. })) = selected_block.0 {
-            info!("Deselecting Grass");
-            selected_block.0 = None;
-        } else {
-            info!("Selecting Grass");
-            selected_block.0 = Some(BlockType::StandardGrass(StandardGrass::default()));
-        }
-    }
-
-    if key_input.just_pressed(KeyCode::Digit2) {
-        if let Some(BlockType::RedStone(RedStone { .. })) = selected_block.0 {
-            info!("Deselecting RedStone");
-            selected_block.0 = None;
-        } else {
-            info!("Selecting RedStone");
-            selected_block.0 = Some(BlockType::RedStone(RedStone::default()));
-        }
-    }
-
-    if key_input.just_pressed(KeyCode::Digit3) {
-        if let Some(BlockType::RedStoneLamp { .. }) = selected_block.0 {
-            info!("Deselecting RedStoneLamp");
-            selected_block.0 = None;
-        } else {
-            info!("Selecting RedStoneLamp");
-            selected_block.0 = Some(BlockType::RedStoneLamp(RedStoneLamp::default()));
-        }
-    }
-
-    if key_input.just_pressed(KeyCode::Digit4) {
-        if let Some(BlockType::Dust { .. }) = selected_block.0 {
-            info!("Deselecting Dust");
-            selected_block.0 = None;
-        } else {
-            info!("Selecting Dust");
-            selected_block.0 = Some(BlockType::Dust(Dust::default()));
-        }
-    }
-
-    if key_input.just_pressed(KeyCode::Digit5) {
-        if let Some(BlockType::RedStoneTorch { .. }) = selected_block.0 {
-            info!("Deselecting RedStone Torch");
-            selected_block.0 = None;
-        } else {
-            info!("Selecting RedStoneTorch");
-            selected_block.0 = Some(BlockType::RedStoneTorch(RedStoneTorch::default()));
-        }
-    }
-
-    // if key_input.just_pressed(KeyCode::Digit6) {
-    //     if let Some(BlockType::StoneButton { .. }) = selected_block.0 {
-    //         info!("Deselecting Stone Button");
-    //         selected_block.0 = None;
-    //     } else {
-    //         info!("Selecting Stone Button");
-    //         selected_block.0 = Some(BlockType::StoneButton {
-    //             ticks: 10,
-    //             pressed: false,
-    //             attached_face: IVec3::NEG_X,
-    //         });
-    //     }
-    // }
-
-    if key_input.just_pressed(KeyCode::Tab) {
-        if tick_counter.is_running() {
-            tick_counter.stop();
-        } else {
-            tick_counter.start();
-        }
-    }
-}

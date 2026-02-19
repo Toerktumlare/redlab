@@ -2,16 +2,14 @@ use bevy::prelude::*;
 
 use crate::{
     RenderCtx, TextureAtlas,
-    block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     blocks::{Block, BlockType, NeighbourUpdate, RecomputedResult, Renderable},
     grid_plugin::Grid,
+    interactions::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     meshes::MeshId,
 };
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct RedStone {
-    power: u8,
-}
+pub struct RedStone;
 
 impl Block for RedStone {
     fn on_placement(&self, grid: &Grid, position: IVec3, _normal: IVec3) -> RecomputedResult<'_> {
@@ -40,10 +38,6 @@ impl Block for RedStone {
 
     fn try_place(&self, _grid: &Grid, _position: IVec3) -> bool {
         true
-    }
-
-    fn power(&self) -> u8 {
-        self.power
     }
 }
 

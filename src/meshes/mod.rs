@@ -25,7 +25,8 @@ impl MeshRegistry {
 
 pub fn setup_mesh_registry(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     let definitions = vec![
-        &BlockDefinition::REDSTONE_TORCH,
+        &BlockDefinition::REDSTONE_TORCH_ON,
+        &BlockDefinition::REDSTONE_TORCH_OFF,
         &BlockDefinition::STANDARD_GRASS,
         &BlockDefinition::STANDARD_DIRT,
         &BlockDefinition::REDSTONE_LAMP_ON,
@@ -40,7 +41,8 @@ pub fn setup_mesh_registry(mut commands: Commands, mut meshes: ResMut<Assets<Mes
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MeshId {
-    RedstoneTorchStem,
+    RedstoneTorchStemOn,
+    RedstoneTorchStemOff,
     RedstoneTorchGlow,
     StandardGrass,
     StandardDirt,

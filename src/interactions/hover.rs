@@ -2,24 +2,15 @@ use bevy::prelude::*;
 
 const EPS: f32 = 1e-4;
 
+#[derive(Component)]
+pub struct HoveredBlock;
+
 #[derive(Resource, Default, Debug)]
 pub struct HoveredBlockInfo {
     pub position: Option<IVec3>,
     pub normal: Option<IVec3>,
 }
 
-#[derive(Component)]
-pub struct HoveredBlock;
-
-pub struct BlockSelectionPlugin;
-
-impl Plugin for BlockSelectionPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
-        app.init_resource::<HoveredBlockInfo>();
-    }
-}
-
-/// Track what block the mouse is hovering
 pub fn track_hovered_block(event: On<Pointer<Over>>, mut commands: Commands) {
     let self_entity = event.event_target();
     commands.entity(self_entity).insert(HoveredBlock);

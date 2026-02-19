@@ -2,11 +2,12 @@ use bevy::prelude::*;
 
 use crate::{
     RenderCtx,
-    block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
+    block_position::BlockPos,
     blocks::{
         ALL_DIRS, Block, BlockType, DIRS, NeighbourUpdate, RecomputedResult, Renderable, Tickable,
     },
-    grid_plugin::Grid,
+    grid_plugin::{BlockChange, BlockChangeQueue, Grid},
+    interactions::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     redstone::{
         JunctionUVs, NotifyDelay, get_mesh,
         junctions::{JunctionType, resolve_junction},
@@ -71,8 +72,36 @@ impl Block for Dust {
         true
     }
 
-    fn power(&self) -> u8 {
-        self.power
+    fn on_remove(&self, grid: &Grid, position: &BlockPos, queue: &mut BlockChangeQueue) {
+        let shape = self.shape;
+        match shape {
+            JunctionType::Vertical => {
+                info!("on_remove, Vertical triggered");
+                let Some(block_type) = grid.get_blocktype(position.front().value()) else {
+                    return;
+                };
+                info!("Front: {:?}", position.front());
+
+                if !matches!(block_type, BlockType::Air) {
+                    let event = BlockChange::NotifyNeighbours(position.front());
+                    queue.push(event);
+                }
+
+                let Some(block_type) = grid.get_blocktype(position.back().value()) else {
+                    return;
+                };
+
+                info!("Front: {:?}", position.back());
+                if !matches!(block_type, BlockType::Air) {
+                    let event = BlockChange::NotifyNeighbours(position.back());
+                    queue.push(event);
+                }
+            }
+            JunctionType::Horizontal => {
+                info!("on_remove, Horizontal triggered");
+            }
+            _ => (),
+        }
     }
 }
 
@@ -131,6 +160,10 @@ impl Tickable for Dust {
         } else {
             RecomputedResult::Unchanged
         }
+    }
+
+    fn power(&self) -> u8 {
+        self.power
     }
 }
 

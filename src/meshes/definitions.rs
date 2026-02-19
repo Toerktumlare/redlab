@@ -4,9 +4,10 @@ use crate::meshes::{
     BlockPart, MeshId, PartMesh,
     uv::{
         REDSTONE_BLOCK, REDSTONE_LAMP_OFF, REDSTONE_LAMP_ON, REDSTONE_TORCH_BACK,
-        REDSTONE_TORCH_BOTTOM, REDSTONE_TORCH_FRONT, REDSTONE_TORCH_GLOW, REDSTONE_TORCH_SIDES,
-        REDSTONE_TORCH_TOP, STANDARD_DIRT, STANDARD_GRASS_BOTTOM, STANDARD_GRASS_SIDES,
-        STANDARD_GRASS_TOP, STONE_BLOCK, UvLayout,
+        REDSTONE_TORCH_BACK_OFF, REDSTONE_TORCH_BOTTOM, REDSTONE_TORCH_BOTTOM_OFF,
+        REDSTONE_TORCH_FRONT, REDSTONE_TORCH_FRONT_OFF, REDSTONE_TORCH_GLOW, REDSTONE_TORCH_SIDES,
+        REDSTONE_TORCH_SIDES_OFF, REDSTONE_TORCH_TOP, REDSTONE_TORCH_TOP_OFF, STANDARD_DIRT,
+        STANDARD_GRASS_BOTTOM, STANDARD_GRASS_SIDES, STANDARD_GRASS_TOP, STONE_BLOCK, UvLayout,
     },
 };
 
@@ -15,10 +16,10 @@ pub struct BlockDefinition {
 }
 
 impl BlockDefinition {
-    pub const REDSTONE_TORCH: Self = Self {
+    pub const REDSTONE_TORCH_ON: Self = Self {
         parts: &[
             BlockPart {
-                part: MeshId::RedstoneTorchStem,
+                part: MeshId::RedstoneTorchStemOn,
                 mesh: PartMesh {
                     size: Vec3::new(0.06, 0.32, 0.06),
                     uvs: UvLayout::PerFace([
@@ -39,6 +40,23 @@ impl BlockDefinition {
                 },
             },
         ],
+    };
+
+    pub const REDSTONE_TORCH_OFF: Self = Self {
+        parts: &[BlockPart {
+            part: MeshId::RedstoneTorchStemOff,
+            mesh: PartMesh {
+                size: Vec3::new(0.06, 0.32, 0.06),
+                uvs: UvLayout::PerFace([
+                    REDSTONE_TORCH_FRONT_OFF,
+                    REDSTONE_TORCH_BACK_OFF,
+                    REDSTONE_TORCH_SIDES_OFF,
+                    REDSTONE_TORCH_SIDES_OFF,
+                    REDSTONE_TORCH_TOP_OFF,
+                    REDSTONE_TORCH_BOTTOM_OFF,
+                ]),
+            },
+        }],
     };
 
     pub const STANDARD_GRASS: Self = Self {

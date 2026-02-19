@@ -3,7 +3,8 @@ use std::collections::HashMap;
 
 use crate::{
     BlockData, BlockType,
-    blocks::{NeighbourUpdate, RecomputedResult, Tickable},
+    block_position::BlockPos,
+    blocks::{ALL_DIRS, Block, NeighbourUpdate, RecomputedResult, Tickable},
     redstone::{GlobalTick, NotifyDelay, Scheduler, Tick},
     render::{DirtyBlocks, DirtyRender},
 };
@@ -12,6 +13,7 @@ use crate::{
 pub enum BlockChange {
     Place(Place),
     Remove(Remove),
+    NotifyNeighbours(BlockPos),
 }
 
 #[derive(Resource, Default)]
@@ -55,12 +57,60 @@ impl Grid {
     pub fn remove(&mut self, pos: IVec3) {
         self.blocks.remove(&pos);
     }
+
+    pub fn is_powered(&self, pos: IVec3) -> bool {
+        for dir in ALL_DIRS {
+            let neighbour_pos = pos + dir;
+            let Some(neighbour_block) = self.get_blocktype(neighbour_pos) else {
+                continue;
+            };
+
+            let Some(asking_block) = self.get_blocktype(pos) else {
+                continue;
+            };
+
+            if neighbour_block.strong_power_emitted_to(pos, neighbour_pos, asking_block) > 0 {
+                return true;
+            };
+
+            if neighbour_block.weak_power_emitted(pos, neighbour_pos, asking_block) > 0 {
+                return true;
+            };
+        }
+        false
+    }
+
+    pub fn get_direct_signal(&self, pos: IVec3) -> u8 {
+        info!("Asking for signal on position: {}", pos);
+        let mut new_power = 0;
+        for dir in ALL_DIRS {
+            let neighbour_pos = pos + dir;
+            let Some(neighbour_block) = self.get_blocktype(neighbour_pos) else {
+                continue;
+            };
+
+            let Some(asking_block) = self.get_blocktype(pos) else {
+                continue;
+            };
+
+            new_power = new_power.max(neighbour_block.strong_power_emitted_to(
+                pos,
+                neighbour_pos,
+                asking_block,
+            ));
+
+            new_power =
+                new_power.max(neighbour_block.weak_power_emitted(pos, neighbour_pos, asking_block));
+        }
+        info!("Power found: {}", new_power);
+        new_power
+    }
 }
 
 #[derive(Event, Clone, Debug)]
 pub struct Place {
     position: IVec3,
-    block_type: BlockType,
+    block_type: Option<BlockType>,
     visual_change: bool,
     self_tick: Option<NotifyDelay>,
     neighbor_tick: Vec<NeighbourUpdate>,
@@ -68,7 +118,7 @@ pub struct Place {
 
 impl Place {
     pub(crate) fn new(
-        block_type: BlockType,
+        block_type: Option<BlockType>,
         position: IVec3,
         visual_change: bool,
         self_tick: Option<NotifyDelay>,
@@ -129,8 +179,11 @@ pub fn grid_apply_changes(
     global_tick: Res<GlobalTick>,
 ) {
     let now = global_tick.read();
-    for change in queue.drain() {
-        if let Some(position) = apply_change(&mut grid, &change) {
+
+    // TODO: Queue VecDec?
+    let changes: Vec<_> = queue.drain().collect();
+    for change in changes {
+        if let Some(position) = apply_change(&mut grid, &change, &mut dirty_blocks, &mut queue) {
             info!("Current block proccessed: {}", position);
             schedule_self_tick(position, &mut scheduler, now, &change);
 
@@ -191,24 +244,41 @@ pub fn grid_apply_changes(
 
 fn try_place(grid: &mut Grid, event: &Place) -> Option<IVec3> {
     let position = event.position;
-    let block_type = event.block_type;
-
+    let Some(block_type) = event.block_type else {
+        return Some(position);
+    };
     grid.insert(position, BlockData { block_type });
     Some(position)
 }
 
-fn try_remove(grid: &mut Grid, position: IVec3) -> Option<IVec3> {
-    if grid.get_mut(position).is_some() {
-        grid.remove(position);
-        return Some(position);
+fn try_remove(grid: &mut Grid, position: &BlockPos, queue: &mut BlockChangeQueue) -> Option<IVec3> {
+    let block_type = grid.get_blocktype(position.value())?;
+
+    info!("Triggering on remove for position: {:?}", position);
+    block_type.on_remove(grid, position, queue);
+
+    if grid.get_mut(position.value()).is_some() {
+        grid.remove(position.value());
+        return Some(position.value());
     }
     None
 }
 
-fn apply_change(grid: &mut Grid, block_change: &BlockChange) -> Option<IVec3> {
+fn apply_change(
+    grid: &mut Grid,
+    block_change: &BlockChange,
+    dirty_block: &mut DirtyBlocks,
+    queue: &mut BlockChangeQueue,
+) -> Option<IVec3> {
     match block_change {
         BlockChange::Place(event) => try_place(grid, event),
-        BlockChange::Remove(event) => try_remove(grid, event.position),
+        BlockChange::Remove(event) => try_remove(grid, &event.position.into(), queue),
+        BlockChange::NotifyNeighbours(block_pos) => {
+            for block_pos in block_pos.neighbours() {
+                dirty_block.mark(block_pos.value());
+            }
+            None
+        }
     }
 }
 
@@ -216,6 +286,7 @@ fn schedule_self_tick(position: IVec3, scheduler: &mut Scheduler, now: Tick, cha
     if let Some(self_tick) = match change {
         BlockChange::Place(event) => &event.self_tick,
         BlockChange::Remove(event) => &event.self_tick,
+        _ => return,
     } {
         info!("Scheduling self: {}", position);
         scheduler.schedule(position, self_tick, now);
@@ -233,6 +304,7 @@ fn schedule_ticks_and_mark_neighbours(
     let neighbor_tick = match change {
         BlockChange::Place(event) => &event.neighbor_tick,
         BlockChange::Remove(event) => &event.neighbor_tick,
+        _ => return,
     };
 
     for n_update in neighbor_tick {
@@ -251,6 +323,7 @@ fn mark_for_redraw(position: IVec3, dirty_render: &mut DirtyRender, change: &Blo
     let visual_change = match change {
         BlockChange::Place(event) => event.visual_change,
         BlockChange::Remove(event) => event.visual_change,
+        _ => return,
     };
 
     if visual_change {

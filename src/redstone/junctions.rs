@@ -42,33 +42,6 @@ fn get_junction_type(connections: &[bool]) -> JunctionType {
     }
 }
 
-// pub fn update_redstone_junction_type(
-//     dirty_blocks: Res<DirtyRedstone>,
-//     grid: Res<Grid>,
-//     mut queue: ResMut<BlockChangeQueue>,
-// ) {
-//     for position in dirty_blocks.positions.iter() {
-//         let position = *position;
-//         let Some(block_data) = grid.get(position) else {
-//             continue;
-//         };
-
-//         match block_data.block_type {
-//             BlockType::Dust { power, .. } => {
-//                 let junction = resolve_junction(position, &grid);
-//                 queue.push(BlockChange::Update(crate::grid_plugin::UpdateRequest {
-//                     position,
-//                     block_type: BlockType::Dust {
-//                         shape: junction,
-//                         power,
-//                     },
-//                 }));
-//             }
-//             _ => continue,
-//         };
-//     }
-// }
-
 pub fn resolve_junction(position: IVec3, grid: &Grid) -> JunctionType {
     let dir = [
         &(position - IVec3::Z), // north
@@ -92,6 +65,9 @@ pub fn resolve_junction(position: IVec3, grid: &Grid) -> JunctionType {
 fn has_redstone(block_data: &BlockData) -> bool {
     matches!(
         block_data.block_type,
-        BlockType::Dust { .. } | BlockType::RedStone { .. } | BlockType::RedStoneLamp { .. } // | BlockType::RedStoneTorch { .. }
+        BlockType::Dust { .. }
+            | BlockType::RedStone { .. }
+            | BlockType::RedStoneLamp { .. }
+            | BlockType::RedStoneTorch { .. }
     )
 }

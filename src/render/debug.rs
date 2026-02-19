@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
-    block_selection_plugin::HoveredBlockInfo,
-    blocks::Block,
+    blocks::Tickable,
     grid_plugin::Grid,
+    interactions::HoveredBlockInfo,
     redstone::{GlobalTick, Scheduler},
     ui::{BlockPosInfo, BlockPowerInfo, Immediate, TickText},
 };

@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::{Grid, RenderCtx, redstone::NotifyDelay};
+use crate::{
+    Grid, RenderCtx, block_position::BlockPos, grid_plugin::BlockChangeQueue,
+    redstone::NotifyDelay, render::DirtyBlocks,
+};
 
 mod dirt;
 mod dust;
@@ -31,14 +34,12 @@ pub trait Block {
     fn on_placement(&self, grid: &Grid, position: IVec3, normal: IVec3) -> RecomputedResult<'_>;
     fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_>;
     fn try_place(&self, grid: &Grid, position: IVec3) -> bool;
-    fn power(&self) -> u8;
-    // fn is_powered(&self) -> bool {
-    //     self.power() > 0
-    // }
+    fn on_remove(&self, _grid: &Grid, _position: &BlockPos, _queue: &mut BlockChangeQueue) {}
 }
 
 pub trait Tickable {
     fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_>;
+    fn power(&self) -> u8;
 }
 
 pub trait Renderable {
@@ -65,30 +66,38 @@ pub enum BlockType {
 impl BlockType {
     pub fn strong_power_emitted_to(
         &self,
-        _asking_pos: IVec3,
-        _emitting_pos: IVec3,
+        asking_pos: IVec3,
+        emitting_pos: IVec3,
         _block_type: &BlockType,
     ) -> u8 {
         match &self {
             BlockType::RedStone(_) => 15,
+            BlockType::RedStoneTorch(RedStoneTorch { lit, .. }) => {
+                if !lit {
+                    return 0;
+                }
+
+                if asking_pos + IVec3::NEG_Y == emitting_pos {
+                    15
+                } else {
+                    0
+                }
+            }
             _ => 0,
         }
     }
 
     pub fn weak_power_emitted(
         &self,
-        _asking_pos: IVec3,
-        _emitting_pos: IVec3,
-        block_type: &BlockType,
+        asking_pos: IVec3,
+        emitting_pos: IVec3,
+        _block_type: &BlockType,
     ) -> u8 {
         match &self {
             BlockType::Dust(block) => block.power(),
-            BlockType::StandardGrass(block) => {
-                if matches!(block_type, BlockType::Dust(_)) {
-                    block.power()
-                } else {
-                    0
-                }
+            BlockType::RedStoneTorch(RedStoneTorch { attached_face, .. }) => {
+                let attached_pos = emitting_pos - attached_face;
+                if asking_pos == attached_pos { 0 } else { 15 }
             }
             _ => 0,
         }
@@ -348,15 +357,10 @@ impl Block for BlockType {
         }
     }
 
-    fn power(&self) -> u8 {
+    fn on_remove(&self, grid: &Grid, position: &BlockPos, queue: &mut BlockChangeQueue) {
         match self {
-            BlockType::StandardGrass(standard_grass) => standard_grass.power(),
-            BlockType::Dirt(dirt) => dirt.power(),
-            BlockType::RedStone(red_stone) => red_stone.power(),
-            BlockType::RedStoneLamp(red_stone_lamp) => red_stone_lamp.power(),
-            BlockType::Dust(dust) => dust.power(),
-            BlockType::RedStoneTorch(block) => block.power(),
-            _ => todo!("No power has been implemented for block: {:?}", self),
+            BlockType::Dust(block) => block.on_remove(grid, position, queue),
+            _ => {}
         }
     }
 }
@@ -364,12 +368,18 @@ impl Block for BlockType {
 impl Tickable for BlockType {
     fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
         match self {
-            BlockType::StandardGrass(block) => block.on_tick(grid, position),
-            BlockType::Dirt(block) => block.on_tick(grid, position),
-            BlockType::RedStone(_) => RecomputedResult::Unchanged,
             BlockType::RedStoneLamp(block) => block.on_tick(grid, position),
             BlockType::Dust(block) => block.on_tick(grid, position),
             _ => RecomputedResult::Unchanged,
+        }
+    }
+
+    fn power(&self) -> u8 {
+        match self {
+            BlockType::RedStoneLamp(red_stone_lamp) => red_stone_lamp.power(),
+            BlockType::Dust(dust) => dust.power(),
+            BlockType::RedStoneTorch(block) => block.power(),
+            _ => 0,
         }
     }
 }

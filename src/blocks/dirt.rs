@@ -2,17 +2,15 @@ use bevy::prelude::*;
 
 use crate::{
     RenderCtx, TextureAtlas,
-    block_selection_plugin::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
-    blocks::{Block, BlockType, NeighbourUpdate, RecomputedResult, Renderable, Tickable},
+    blocks::{Block, BlockType, NeighbourUpdate, RecomputedResult, Renderable},
     grid_plugin::Grid,
+    interactions::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     meshes::MeshId,
     redstone::NotifyDelay,
 };
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Dirt {
-    pub power: u8,
-}
+pub struct Dirt;
 
 impl Block for Dirt {
     fn on_placement(&self, grid: &Grid, position: IVec3, _normal: IVec3) -> RecomputedResult<'_> {
@@ -26,22 +24,13 @@ impl Block for Dirt {
         };
         RecomputedResult::Unchanged
     }
+
     fn neighbor_changed(&self, _grid: &Grid, _position: IVec3) -> RecomputedResult<'_> {
         RecomputedResult::Unchanged
     }
 
     fn try_place(&self, _grid: &Grid, _position: IVec3) -> bool {
         true
-    }
-
-    fn power(&self) -> u8 {
-        self.power
-    }
-}
-
-impl Tickable for Dirt {
-    fn on_tick(&self, _grid: &Grid, _position: IVec3) -> RecomputedResult<'_> {
-        RecomputedResult::Unchanged
     }
 }
 
