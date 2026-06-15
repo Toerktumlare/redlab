@@ -6,7 +6,7 @@ use crate::{
     grid_plugin::Grid,
     interactions::{track_grid_cordinate, track_hovered_block, untrack_hovered_block},
     meshes::MeshId,
-    redstone::NotifyDelay,
+    redstone::{NotifyDelay, get_mesh},
 };
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
@@ -37,11 +37,13 @@ impl Block for RedStoneTorch {
         grid: &crate::grid_plugin::Grid,
         position: IVec3,
     ) -> RecomputedResult<'_> {
-        info!("Torch neighbour changed LETS RECOMPUTE THE TORCH!");
         let attached_block_has_power = grid.get_direct_signal(position - self.attached_face) > 0;
 
+        info!(attached_block_has_power);
+        info!(self.lit);
         if self.lit == attached_block_has_power {
             // If power has changed, schedule for next tick, but dont update the torch state yet
+            info!("Torch neighbour changed LETS RECOMPUTE THE TORCH!");
             return RecomputedResult::Changed {
                 new_block: None,
                 visual_update: false,
@@ -60,9 +62,10 @@ impl Block for RedStoneTorch {
 
 impl Tickable for RedStoneTorch {
     fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
-        let attached_block_has_power = grid.get_direct_signal(position - self.attached_face) > 0;
-
+        // let attached_block_has_power = grid.get_direct_signal(position - self.attached_face) > 0;
+        let attached_block_has_power = true;
         info!("TICK: {}", attached_block_has_power);
+
         if self.lit == attached_block_has_power {
             return RecomputedResult::Changed {
                 new_block: Some(BlockType::RedStoneTorch(RedStoneTorch {
@@ -175,7 +178,8 @@ impl Renderable for RedStoneTorch {
         ctx.block_entities.entities.insert(position, entity);
     }
 
-    fn update(&self, _ctx: &mut crate::RenderCtx, _entity: Entity, _position: IVec3) {
-        todo!()
+    fn update(&self, ctx: &mut crate::RenderCtx, entity: Entity, position: IVec3) {
+        ctx.commands.entity(entity).despawn();
+        self.spawn(ctx, position);
     }
 }

@@ -13,50 +13,40 @@ pub(crate) fn select_block(
 ) {
     if key_input.just_pressed(KeyCode::Digit1) {
         if let Some(BlockType::StandardGrass(StandardGrass { .. })) = selected_block.0 {
-            info!("Deselecting Grass");
             selected_block.0 = None;
         } else {
-            info!("Selecting Grass");
-            selected_block.0 = Some(BlockType::StandardGrass(StandardGrass::default()));
+            selected_block.0 = Some(BlockType::StandardGrass(StandardGrass));
         }
     }
 
     if key_input.just_pressed(KeyCode::Digit2) {
         if let Some(BlockType::RedStone(RedStone { .. })) = selected_block.0 {
-            info!("Deselecting RedStone");
             selected_block.0 = None;
         } else {
-            info!("Selecting RedStone");
-            selected_block.0 = Some(BlockType::RedStone(RedStone::default()));
+            selected_block.0 = Some(BlockType::RedStone(RedStone));
         }
     }
 
     if key_input.just_pressed(KeyCode::Digit3) {
         if let Some(BlockType::RedStoneLamp { .. }) = selected_block.0 {
-            info!("Deselecting RedStoneLamp");
             selected_block.0 = None;
         } else {
-            info!("Selecting RedStoneLamp");
             selected_block.0 = Some(BlockType::RedStoneLamp(RedStoneLamp::default()));
         }
     }
 
     if key_input.just_pressed(KeyCode::Digit4) {
         if let Some(BlockType::Dust { .. }) = selected_block.0 {
-            info!("Deselecting Dust");
             selected_block.0 = None;
         } else {
-            info!("Selecting Dust");
             selected_block.0 = Some(BlockType::Dust(Dust::default()));
         }
     }
 
     if key_input.just_pressed(KeyCode::Digit5) {
         if let Some(BlockType::RedStoneTorch { .. }) = selected_block.0 {
-            info!("Deselecting RedStone Torch");
             selected_block.0 = None;
         } else {
-            info!("Selecting RedStoneTorch");
             selected_block.0 = Some(BlockType::RedStoneTorch(RedStoneTorch::default()));
         }
     }

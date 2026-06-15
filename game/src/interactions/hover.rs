@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bevy::prelude::*;
 
 const EPS: f32 = 1e-4;
@@ -9,6 +11,20 @@ pub struct HoveredBlock;
 pub struct HoveredBlockInfo {
     pub position: Option<IVec3>,
     pub normal: Option<IVec3>,
+}
+
+impl fmt::Display for HoveredBlockInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "HoveredBlockInfo {{ ")?;
+        if let Some(position) = self.position {
+            write!(f, "position: {}", position)?;
+        }
+        if let Some(normal) = self.normal {
+            write!(f, "normal: {}", normal)?;
+        }
+        write!(f, " }}")?;
+        Ok(())
+    }
 }
 
 pub fn track_hovered_block(event: On<Pointer<Over>>, mut commands: Commands) {

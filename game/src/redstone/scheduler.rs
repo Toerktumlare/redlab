@@ -15,7 +15,7 @@ pub enum NotifyDelay {
     In(Tick),
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource, Debug, Default)]
 pub struct Scheduler {
     pub immediate: VecDeque<IVec3>,
     scheduled: HashMap<u64, HashSet<IVec3>>,

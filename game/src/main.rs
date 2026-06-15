@@ -1,4 +1,12 @@
-use bevy::{ecs::system::SystemParam, prelude::*, window::WindowResolution};
+use bevy::{
+    ecs::system::SystemParam,
+    log::{
+        Level, LogPlugin,
+        tracing_subscriber::fmt::{self},
+    },
+    prelude::*,
+    window::WindowResolution,
+};
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
 use std::{collections::HashMap, time::Duration};
@@ -53,7 +61,7 @@ impl Default for BlockData {
     }
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource, Debug, Default)]
 struct SelectedBlock(Option<BlockType>);
 
 #[derive(Resource, Default)]
@@ -112,7 +120,23 @@ fn main() {
                     }),
                     ..default()
                 })
-                .set(ImagePlugin::default_nearest()),
+                .set(ImagePlugin::default_nearest())
+                .set(LogPlugin {
+                    filter: "redlab=debug".to_string(),
+                    level: Level::WARN,
+                    fmt_layer: |_app| {
+                        Some(Box::new(
+                            fmt::layer()
+                                .json()
+                                .flatten_event(true)
+                                .with_span_list(false)
+                                .with_target(true)
+                                .with_ansi(true)
+                                .with_writer(std::io::stdout),
+                        ))
+                    },
+                    ..default()
+                }),
         )
         .add_plugins(MaterialPlugin::<BlockMaterial>::default())
         .add_plugins((

@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{log::tracing::instrument, prelude::*};
 use std::collections::HashMap;
 
 use crate::{
@@ -81,7 +81,6 @@ impl Grid {
     }
 
     pub fn get_direct_signal(&self, pos: IVec3) -> u8 {
-        info!("Asking for signal on position: {}", pos);
         let mut new_power = 0;
         for dir in ALL_DIRS {
             let neighbour_pos = pos + dir;
@@ -102,7 +101,6 @@ impl Grid {
             new_power =
                 new_power.max(neighbour_block.weak_power_emitted(pos, neighbour_pos, asking_block));
         }
-        info!("Power found: {}", new_power);
         new_power
     }
 }
@@ -166,7 +164,6 @@ impl Plugin for GridPlugin {
 }
 
 pub fn queue_block_change(event: On<BlockChange>, mut queue: ResMut<BlockChangeQueue>) {
-    info!("Queueing up event: {:?}", event.event());
     queue.push(event.event().clone());
 }
 
@@ -184,7 +181,6 @@ pub fn grid_apply_changes(
     let changes: Vec<_> = queue.drain().collect();
     for change in changes {
         if let Some(position) = apply_change(&mut grid, &change, &mut dirty_blocks, &mut queue) {
-            info!("Current block proccessed: {}", position);
             schedule_self_tick(position, &mut scheduler, now, &change);
 
             schedule_ticks_and_mark_neighbours(
@@ -200,7 +196,9 @@ pub fn grid_apply_changes(
         }
     }
 
+    info_span!("redstone_schedule", queue = ?scheduler.immediate);
     while let Some(position) = scheduler.immediate.pop_front() {
+        info!(?position);
         let block_type = match grid.get_blocktype(position) {
             Some(bt) => *bt,
             None => continue,
@@ -227,10 +225,7 @@ pub fn grid_apply_changes(
             for update in neighbor_tick {
                 let position = position + update.position;
                 if grid.get(position).is_some() {
-                    info!("Scheduling neighbour: {}", position);
                     scheduler.schedule(position, &update.notification, now);
-
-                    info!("Marking block as dirty: {}", position);
                     dirty_blocks.mark(position);
                 }
             }
@@ -242,19 +237,21 @@ pub fn grid_apply_changes(
     }
 }
 
+#[instrument(skip(grid))]
 fn try_place(grid: &mut Grid, event: &Place) -> Option<IVec3> {
     let position = event.position;
     let Some(block_type) = event.block_type else {
         return Some(position);
     };
+    info!(?block_type);
     grid.insert(position, BlockData { block_type });
     Some(position)
 }
 
+#[instrument(skip(grid, queue))]
 fn try_remove(grid: &mut Grid, position: &BlockPos, queue: &mut BlockChangeQueue) -> Option<IVec3> {
     let block_type = grid.get_blocktype(position.value())?;
 
-    info!("Triggering on remove for position: {:?}", position);
     block_type.on_remove(grid, position, queue);
 
     if grid.get_mut(position.value()).is_some() {
@@ -288,7 +285,6 @@ fn schedule_self_tick(position: IVec3, scheduler: &mut Scheduler, now: Tick, cha
         BlockChange::Remove(event) => &event.self_tick,
         _ => return,
     } {
-        info!("Scheduling self: {}", position);
         scheduler.schedule(position, self_tick, now);
     }
 }
@@ -310,10 +306,7 @@ fn schedule_ticks_and_mark_neighbours(
     for n_update in neighbor_tick {
         let position = position + n_update.position;
         if grid.get(position).is_some() {
-            info!("Scheduling neighbour: {}", position);
             scheduler.schedule(position, &n_update.notification, now);
-
-            info!("Marking block as dirty: {}", position);
             dirty_blocks.mark(position);
         }
     }

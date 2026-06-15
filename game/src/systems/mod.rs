@@ -19,8 +19,6 @@ pub fn recalculate_dirty_blocks(
 
         let result = block_data.block_type.neighbor_changed(&grid, position);
 
-        info!(?position, ?result);
-
         match result {
             RecomputedResult::Changed {
                 new_block,

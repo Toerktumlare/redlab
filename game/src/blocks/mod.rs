@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use tracing::instrument;
 
 use crate::{
     Grid, RenderCtx, block_position::BlockPos, grid_plugin::BlockChangeQueue,
@@ -321,6 +322,7 @@ impl Block for BlockType {
     //     )
     // }
 
+    #[instrument(skip(grid), ret)]
     fn on_placement(&self, grid: &Grid, position: IVec3, normal: IVec3) -> RecomputedResult<'_> {
         match self {
             BlockType::Air => todo!(),
@@ -333,6 +335,7 @@ impl Block for BlockType {
         }
     }
 
+    #[instrument(skip(grid), ret)]
     fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
         match self {
             BlockType::StandardGrass(block) => block.neighbor_changed(grid, position),
@@ -366,10 +369,13 @@ impl Block for BlockType {
 }
 
 impl Tickable for BlockType {
+    #[instrument(skip(grid), ret)]
     fn on_tick(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
+        info!("time to tick!");
         match self {
             BlockType::RedStoneLamp(block) => block.on_tick(grid, position),
             BlockType::Dust(block) => block.on_tick(grid, position),
+            BlockType::RedStoneTorch(block) => block.on_tick(grid, position),
             _ => RecomputedResult::Unchanged,
         }
     }
@@ -455,6 +461,27 @@ impl NeighbourUpdate {
         NeighbourUpdate::new(IVec3::new(-1, -1, 0), NotifyDelay::Immediate),
         NeighbourUpdate::new(IVec3::new(0, -1, 1), NotifyDelay::Immediate),
         NeighbourUpdate::new(IVec3::new(0, -1, -1), NotifyDelay::Immediate),
+    ];
+
+    pub const MEGA_EXTENDED: &[Self] = &[
+        NeighbourUpdate::new(IVec3::X, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_X, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::Z, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_Z, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::Y, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::NEG_Y, NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(1, 1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(-1, 1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, 1, 1), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, 1, -1), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(1, -1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(-1, -1, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, -1, 1), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, -1, -1), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, 0, 2), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(0, 0, -2), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(-2, 0, 0), NotifyDelay::Immediate),
+        NeighbourUpdate::new(IVec3::new(2, 0, 0), NotifyDelay::Immediate),
     ];
 
     pub const fn new(position: IVec3, notification: NotifyDelay) -> Self {

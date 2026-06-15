@@ -12,6 +12,7 @@ use crate::{
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct RedStoneLamp {
+    // TODO: remove power
     power: u8,
 }
 

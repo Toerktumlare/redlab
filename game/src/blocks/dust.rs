@@ -33,7 +33,7 @@ impl Block for Dust {
                 })),
                 visual_update: true,
                 self_tick: Some(NotifyDelay::Immediate),
-                neighbor_tick: NeighbourUpdate::EXTENDED,
+                neighbor_tick: NeighbourUpdate::MEGA_EXTENDED,
             };
         };
         RecomputedResult::Unchanged
@@ -49,7 +49,7 @@ impl Block for Dust {
                 })),
                 visual_update: true,
                 self_tick: Some(NotifyDelay::Immediate),
-                neighbor_tick: NeighbourUpdate::EXTENDED,
+                neighbor_tick: NeighbourUpdate::MEGA_EXTENDED,
             };
         }
 
@@ -64,7 +64,7 @@ impl Block for Dust {
             })),
             visual_update: true,
             self_tick: Some(NotifyDelay::Immediate),
-            neighbor_tick: NeighbourUpdate::EXTENDED,
+            neighbor_tick: NeighbourUpdate::MEGA_EXTENDED,
         }
     }
 

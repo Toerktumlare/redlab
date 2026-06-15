@@ -1,0 +1,13 @@
+[package]
+name = "game"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy.workspace = true
+rand_core.workspace = true
+bevy_rand.workspace = true
+bevy_prng.workspace = true
+tracing.workspace = true
+tracing-tree.workspace = true
+tracing-subscriber.workspace = true

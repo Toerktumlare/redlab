@@ -26,17 +26,9 @@ impl Block for StandardGrass {
     }
 
     fn neighbor_changed(&self, grid: &Grid, position: IVec3) -> RecomputedResult<'_> {
-        let Some(_) = grid.get(position) else {
-            let above = position + IVec3::Y;
-            let Some(above_block_data) = grid.get(above) else {
-                return RecomputedResult::Changed {
-                    new_block: Some(BlockType::StandardGrass(*self)),
-                    visual_update: true,
-                    self_tick: Some(NotifyDelay::Immediate),
-                    neighbor_tick: NeighbourUpdate::DEFAULT,
-                };
-            };
-
+        let above = position + IVec3::Y;
+        if let Some(above_block_data) = grid.get(above) {
+            // Dirt check should i be dirt or grass
             if matches!(
                 above_block_data.block_type,
                 BlockType::StandardGrass(_) | BlockType::Dirt(_)
@@ -47,27 +39,6 @@ impl Block for StandardGrass {
                     self_tick: None,
                     neighbor_tick: NeighbourUpdate::NONE,
                 };
-            };
-
-            return RecomputedResult::Changed {
-                new_block: Some(BlockType::StandardGrass(*self)),
-                visual_update: true,
-                self_tick: None,
-                neighbor_tick: NeighbourUpdate::NONE,
-            };
-        };
-
-        let above = position + IVec3::Y;
-        let Some(block_data) = grid.get(above) else {
-            return RecomputedResult::Unchanged;
-        };
-
-        if let BlockType::StandardGrass(_) = block_data.block_type {
-            return RecomputedResult::Changed {
-                new_block: Some(BlockType::Dirt(Dirt {})),
-                visual_update: true,
-                self_tick: Some(NotifyDelay::Immediate),
-                neighbor_tick: NeighbourUpdate::NONE,
             };
         };
 

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use tracing::{field, instrument};
 
 use crate::{
     SelectedBlock,
@@ -18,6 +19,13 @@ pub enum Action {
     Interact(IVec3),
 }
 
+#[instrument(
+    skip(commands, mouse_buttons, hovered_block), 
+    fields(
+        mouse_button_clicked, 
+        selected_block = ?selected_block.0, 
+        hovered_block = ?*hovered_block
+    ))]
 pub(crate) fn request_place_selected_block(
     mut commands: Commands,
     selected_block: Res<SelectedBlock>,
@@ -28,10 +36,14 @@ pub(crate) fn request_place_selected_block(
         && let Some(position) = hovered_block.position
         && let Some(normal) = hovered_block.normal
     {
+        tracing::Span::current().record("mouse_button_clicked", field::debug(MouseButton::Left));
         if let Some(block_type) = selected_block.0 {
-            info!("Triggered placement!");
-            commands.trigger(ClickEvent(Action::PlaceBlock(block_type, position, normal)));
+            let action = Action::PlaceBlock(block_type, position, normal);
+            info!(ClickEvent = ?action);
+            commands.trigger(ClickEvent(action));
         } else {
+            let action = Action::Interact(position);
+            info!(ClickEvent = ?action);
             commands.trigger(ClickEvent(Action::Interact(position)));
         }
     }
